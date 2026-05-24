@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Wipe all Redbelly DAO taskboard Firestore data.
+ * Wipe all Redbelly DAO taskboard data — Firestore collections AND Firebase Auth users.
  *
  * Usage:
  *   node scripts/wipe-db.js path/to/serviceAccountKey.json
@@ -8,12 +8,13 @@
  * Get your service account key from Firebase Console →
  *   Project Settings → Service Accounts → Generate new private key
  *
- * IMPORTANT: This is irreversible. All submissions, users, and tasks
- * will be permanently deleted.
+ * IMPORTANT: This is irreversible. All submissions, users, tasks AND
+ * all Firebase Auth accounts will be permanently deleted.
  */
 
 const { initializeApp, cert } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
 const path = require("path");
 const readline = require("readline");
 
@@ -26,13 +27,11 @@ async function deleteCollection(db, collectionName) {
     return 0;
   }
 
-  // Delete in batches of 400 (Firestore limit is 500)
   let deleted = 0;
   const chunks = [];
   for (let i = 0; i < snap.docs.length; i += 400) {
     chunks.push(snap.docs.slice(i, i + 400));
   }
-
   for (const chunk of chunks) {
     const batch = db.batch();
     chunk.forEach((doc) => batch.delete(doc.ref));
@@ -41,6 +40,24 @@ async function deleteCollection(db, collectionName) {
   }
 
   console.log(`  ${collectionName}: deleted ${deleted} document${deleted !== 1 ? "s" : ""}`);
+  return deleted;
+}
+
+async function deleteAllAuthUsers(auth) {
+  let deleted = 0;
+  let pageToken;
+
+  do {
+    const result = await auth.listUsers(1000, pageToken);
+    if (result.users.length === 0) break;
+
+    const uids = result.users.map((u) => u.uid);
+    await auth.deleteUsers(uids);
+    deleted += uids.length;
+    pageToken = result.pageToken;
+  } while (pageToken);
+
+  console.log(`  Firebase Auth: deleted ${deleted} account${deleted !== 1 ? "s" : ""}`);
   return deleted;
 }
 
@@ -66,7 +83,8 @@ async function main() {
   console.log("\n⚠️  DATABASE WIPE SCRIPT");
   console.log("══════════════════════════════════════════");
   console.log(`Project: ${serviceAccount.project_id}`);
-  console.log(`Collections: ${COLLECTIONS.join(", ")}`);
+  console.log(`Firestore: ${COLLECTIONS.join(", ")}`);
+  console.log(`Auth: ALL user accounts`);
   console.log("══════════════════════════════════════════\n");
 
   const answer = await confirm('Type "WIPE" to confirm permanent deletion: ');
@@ -77,15 +95,22 @@ async function main() {
 
   initializeApp({ credential: cert(serviceAccount) });
   const db = getFirestore();
+  const auth = getAuth();
 
-  console.log("\nDeleting collections...");
+  console.log("\nDeleting Firestore collections...");
   let total = 0;
   for (const col of COLLECTIONS) {
     total += await deleteCollection(db, col);
   }
 
-  console.log(`\nDone. ${total} total documents deleted.`);
-  console.log("Run scripts/seed-tasks.js next to repopulate the tasks collection.");
+  console.log("\nDeleting Firebase Auth accounts...");
+  total += await deleteAllAuthUsers(auth);
+
+  console.log(`\nDone. ${total} total records deleted.`);
+  console.log("Next steps:");
+  console.log("  1. node scripts/seed-tasks.js path/to/serviceAccountKey.json");
+  console.log("  2. Register your account on the site");
+  console.log("  3. Promote yourself to admin in Firestore → users → your doc → role: admin");
   process.exit(0);
 }
 
