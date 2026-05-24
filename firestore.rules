@@ -21,9 +21,9 @@ service cloud.firestore {
       );
     }
 
-    // Tasks collection — readable by all authenticated users; write restricted to admins
+    // Tasks collection — publicly readable; write restricted to admins
     match /tasks/{taskId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow create, update, delete: if request.auth != null && role() == "admin";
     }
 
