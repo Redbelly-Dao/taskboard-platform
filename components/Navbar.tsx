@@ -21,44 +21,36 @@ export default function Navbar() {
     <nav className="page-header sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         {/* Logo */}
-        <Link href={dashboardHref} className="flex items-center gap-2.5">
+        <Link href={dashboardHref} className="flex items-center gap-2.5 flex-shrink-0">
           <Image src="/dao-logo.png" alt="Redbelly DAO" height={32} width={47} className="object-contain" />
           <span className="text-[#555555] text-sm font-medium hidden sm:block">Task Board</span>
         </Link>
 
-        {/* Nav links */}
-        <div className="flex items-center gap-6">
+        {/* Right side */}
+        <div className="flex items-center gap-4">
           {appUser && (
-            <>
-              <Link href={dashboardHref} className="btn-ghost">
-                Dashboard
-              </Link>
+            <div className="flex items-center gap-4">
+              <Link href={dashboardHref} className="btn-ghost text-sm">Dashboard</Link>
               {appUser.role === "admin" && (
-                <Link href="/admin" className="btn-ghost">
-                  Users
-                </Link>
+                <Link href="/admin" className="btn-ghost text-sm hidden sm:block">Admin</Link>
               )}
               {appUser.role === "reviewer" && (
-                <Link href="/reviewer" className="btn-ghost">
-                  Reviews
-                </Link>
+                <Link href="/reviewer" className="btn-ghost text-sm hidden sm:block">Reviews</Link>
               )}
-            </>
+            </div>
           )}
 
           {user && (
-            <div className="flex items-center gap-3 pl-4 border-l border-[#E8EBF0]">
+            <div className="flex items-center gap-3 pl-3 border-l border-[#E8EBF0]">
               {appUser && (
-                <div className="text-right hidden sm:block">
-                  <p className="text-xs font-semibold text-[#1A1A2E] truncate max-w-[120px]">
-                    {appUser.walletAddress.slice(0, 6)}...{appUser.walletAddress.slice(-4)}
+                <div className="bg-[#F4F5F7] border border-[#E8EBF0] rounded-lg px-3 py-1.5">
+                  <p className="text-xs font-mono font-semibold text-[#1A1A2E] leading-tight">
+                    {appUser.walletAddress.slice(0, 6)}…{appUser.walletAddress.slice(-4)}
                   </p>
-                  <p className="text-xs text-[#E63329] capitalize font-medium">{appUser.role}</p>
+                  <p className="text-[10px] text-[#E63329] capitalize font-bold leading-tight">{appUser.role}</p>
                 </div>
               )}
-              <button onClick={handleLogout} className="btn-ghost text-xs">
-                Sign out
-              </button>
+              <button onClick={handleLogout} className="btn-ghost text-xs">Sign out</button>
             </div>
           )}
         </div>

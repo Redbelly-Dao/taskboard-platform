@@ -26,7 +26,6 @@
 
 # private / non-essential
 .private/
-scripts/
 storage.cors.json
 service-account-key.json
 

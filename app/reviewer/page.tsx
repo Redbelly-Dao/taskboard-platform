@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { TASKS, getCategoryLabel } from "@/lib/tasks";
+import { Task, getCategoryLabel } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
 
 const RUBRIC_CRITERIA = [
@@ -21,6 +21,7 @@ export default function ReviewerPage() {
   const { user, appUser, loading } = useAuth();
   const router = useRouter();
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<Map<string, Task>>(new Map());
   const [selected, setSelected] = useState<any>(null);
   const [scores, setScores] = useState<number[]>(new Array(7).fill(0));
   const [justifications, setJustifications] = useState<string[]>(new Array(7).fill(""));
@@ -38,13 +39,18 @@ export default function ReviewerPage() {
 
   useEffect(() => {
     if (!user) return;
-    const fetch = async () => {
-      const q = query(collection(db, "submissions"), where("status", "==", "under_review"));
-      const snap = await getDocs(q);
-      setSubmissions(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    const load = async () => {
+      const [subSnap, taskSnap] = await Promise.all([
+        getDocs(query(collection(db, "submissions"), where("status", "==", "under_review"))),
+        getDocs(collection(db, "tasks")),
+      ]);
+      setSubmissions(subSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const map = new Map<string, Task>();
+      taskSnap.docs.forEach((d) => map.set(d.id, { id: d.id, ...d.data() } as Task));
+      setTasks(map);
       setFetchLoading(false);
     };
-    fetch();
+    load();
   }, [user]);
 
   const openReview = (sub: any) => {
@@ -77,7 +83,7 @@ export default function ReviewerPage() {
       });
       setSubmissions((prev) => prev.filter((s) => s.id !== selected.id));
       setSelected(null);
-    } catch (err) {
+    } catch {
       alert("Failed to submit review. Please try again.");
     } finally {
       setSubmitting(false);
@@ -85,26 +91,25 @@ export default function ReviewerPage() {
   };
 
   if (loading || fetchLoading) return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center bg-[#F4F5F7]">
       <div className="w-8 h-8 border-2 border-[#E63329] border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F0F2F5]">
+    <div className="min-h-screen bg-[#F4F5F7]">
       <Navbar />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-[#1A1A2E]">Reviewer Dashboard</h1>
-          <p className="text-[#555555] text-sm mt-1">
+          <p className="text-[#888888] text-sm mt-1">
             {submissions.length} submission{submissions.length !== 1 ? "s" : ""} awaiting review.
             Self-select tasks within your domain of expertise.
           </p>
         </div>
 
         {selected ? (
-          // REVIEW PANEL
           <div>
             <button onClick={() => setSelected(null)} className="btn-ghost mb-4 text-sm">
               ← Back to submissions
@@ -158,7 +163,7 @@ export default function ReviewerPage() {
                   </div>
 
                   {selected.notes && (
-                    <div className="mt-4 p-3 bg-[#F0F2F5] rounded">
+                    <div className="mt-4 p-3 bg-[#F4F5F7] rounded-lg">
                       <p className="text-xs font-semibold text-[#555555] mb-1">Notes from contributor</p>
                       <p className="text-xs text-[#555555] leading-relaxed">{selected.notes}</p>
                     </div>
@@ -167,19 +172,19 @@ export default function ReviewerPage() {
 
                 {/* Task spec quick ref */}
                 {(() => {
-                  const task = TASKS.find((t) => t.id === selected.taskId);
+                  const task = tasks.get(selected.taskId);
                   return task ? (
                     <div className="card p-5">
-                      <p className="text-xs font-semibold text-[#555555] mb-3 uppercase tracking-wide">Quality Benchmarks</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-[#888888] mb-3">Quality Benchmarks</p>
                       <ul className="space-y-1.5">
                         {task.qualityBenchmarks.map((b, i) => (
                           <li key={i} className="flex gap-2 text-xs text-[#555555]">
-                            <span className="text-[#E63329] shrink-0">✓</span>
+                            <span className="text-green-600 shrink-0">✓</span>
                             <span>{b}</span>
                           </li>
                         ))}
                       </ul>
-                      <p className="text-xs font-semibold text-[#555555] mb-3 mt-4 uppercase tracking-wide">Failure Criteria</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-[#888888] mb-3 mt-4">Failure Criteria</p>
                       <ul className="space-y-1.5">
                         {task.failureCriteria.map((f, i) => (
                           <li key={i} className="flex gap-2 text-xs text-[#555555]">
@@ -204,18 +209,16 @@ export default function ReviewerPage() {
                     </div>
                   </div>
 
-                  {/* Score scale */}
-                  <div className="bg-[#FEF0EF] rounded p-3 mb-5 text-xs text-[#555555]">
+                  <div className="bg-[#FEF0EF] rounded-lg p-3 mb-5 text-xs text-[#555555]">
                     <span className="font-semibold text-[#E63329]">Scale: </span>
                     1 = Does not meet standard · 2 = Partially meets · 3 = Meets standard · 4 = Exceeds · 5 = Exceptional
                   </div>
 
                   <div className="space-y-5">
                     {RUBRIC_CRITERIA.map((criterion, i) => (
-                      <div key={i} className={`p-4 rounded ${i % 2 === 0 ? "bg-[#F0F2F5]" : "bg-white border border-[#E5E5E5]"}`}>
+                      <div key={i} className={`p-4 rounded-lg ${i % 2 === 0 ? "bg-[#F4F5F7]" : "bg-white border border-[#E8EBF0]"}`}>
                         <p className="text-xs font-semibold text-[#1A1A2E] mb-3 leading-relaxed">{criterion}</p>
 
-                        {/* Score buttons */}
                         <div className="flex gap-2 mb-3">
                           {[1, 2, 3, 4, 5].map((s) => (
                             <button
@@ -229,7 +232,7 @@ export default function ReviewerPage() {
                               className={`w-9 h-9 rounded text-sm font-bold transition-colors ${
                                 scores[i] === s
                                   ? "bg-[#E63329] text-white"
-                                  : "bg-white border border-[#E5E5E5] text-[#555555] hover:border-[#E63329]"
+                                  : "bg-white border border-[#E8EBF0] text-[#555555] hover:border-[#E63329]"
                               }`}
                             >
                               {s}
@@ -242,7 +245,6 @@ export default function ReviewerPage() {
                           )}
                         </div>
 
-                        {/* Justification */}
                         <div>
                           <input
                             className="input text-xs"
@@ -268,7 +270,7 @@ export default function ReviewerPage() {
                   {/* Decision */}
                   <div className="mt-6 pt-6 border-t border-[#E8EBF0]">
                     <p className="label mb-3">Decision</p>
-                    <div className="flex gap-3 mb-4">
+                    <div className="flex gap-3 mb-4 flex-wrap">
                       {(["approved", "revision", "rejected"] as const).map((d) => (
                         <button
                           key={d}
@@ -279,7 +281,7 @@ export default function ReviewerPage() {
                               ? d === "approved" ? "bg-green-600 text-white"
                                 : d === "rejected" ? "bg-red-600 text-white"
                                 : "bg-yellow-500 text-white"
-                              : "bg-white border border-[#E5E5E5] text-[#555555] hover:border-[#555555]"
+                              : "bg-white border border-[#E8EBF0] text-[#555555] hover:border-[#555555]"
                           }`}
                         >
                           {d === "revision" ? "Revision Requested" : d.charAt(0).toUpperCase() + d.slice(1)}
@@ -337,7 +339,6 @@ export default function ReviewerPage() {
             </div>
           </div>
         ) : (
-          // SUBMISSIONS LIST
           <div>
             {submissions.length === 0 ? (
               <div className="card p-12 text-center">
@@ -347,7 +348,7 @@ export default function ReviewerPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {submissions.map((sub) => {
-                  const task = TASKS.find((t) => t.id === sub.taskId);
+                  const task = tasks.get(sub.taskId);
                   return (
                     <div key={sub.id} className="card p-5 hover:border-[#E63329] transition-colors">
                       <div className="flex items-start justify-between mb-3">
@@ -365,7 +366,7 @@ export default function ReviewerPage() {
                       </div>
 
                       <div className="flex items-center justify-between pt-3 border-t border-[#E8EBF0]">
-                        <p className="text-base font-bold text-[#E63329]">${task?.reviewerComp} reviewer comp</p>
+                        <p className="text-base font-bold text-[#E63329]">${task?.reviewerComp ?? "—"} reviewer comp</p>
                         <button onClick={() => openReview(sub)} className="btn-primary text-xs px-4 py-2">
                           Review This
                         </button>
