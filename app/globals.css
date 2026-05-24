@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+:root {
+  --accent: #E63329;
+  --accent-hover: #CC2820;
+  --accent-light: #FEF0EF;
+  --dark: #1A1A2E;
+  --charcoal: #1A2B4A;
+  --gray: #555555;
+  --border: #E5E5E5;
+  --row-alt: #F0F2F5;
+  --rule: #E8EBF0;
+}
+
+body {
+  background-color: #F0F2F5;
+  color: #1A1A2E;
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: #E63329;
+  color: white;
+  font-weight: 600;
+  padding: 0.625rem 1.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  transition: background-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  border: none;
+}
+.btn-primary:hover { background-color: #CC2820; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-secondary {
+  background-color: white;
+  color: #1A1A2E;
+  font-weight: 600;
+  padding: 0.625rem 1.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  border: 1px solid #E5E5E5;
+  transition: background-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.btn-secondary:hover { background-color: #F0F2F5; }
+
+.btn-ghost {
+  color: #555555;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: color 0.15s;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-ghost:hover { color: #E63329; }
+
+/* Card */
+.card {
+  background-color: white;
+  border-radius: 0.5rem;
+  border: 1px solid #E5E5E5;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+/* Input */
+.input {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid #E5E5E5;
+  border-radius: 0.25rem;
+  background-color: white;
+  color: #1A1A2E;
+  transition: border-color 0.15s;
+  outline: none;
+}
+.input::placeholder { color: #AAAAAA; }
+.input:focus { border-color: #E63329; box-shadow: 0 0 0 1px #E63329; }
+
+/* Label */
+.label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #555555;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.375rem;
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge-developer { background-color: #EFF6FF; color: #1D4ED8; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-design { background-color: #F5F3FF; color: #6D28D9; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-research { background-color: #F0FDF4; color: #15803D; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-documentation { background-color: #FEFCE8; color: #A16207; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-content { background-color: #FDF2F8; color: #9D174D; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-open { background-color: #FEF0EF; color: #E63329; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-assigned { background-color: #EFF6FF; color: #1D4ED8; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-in_progress { background-color: #FEFCE8; color: #A16207; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-under_review { background-color: #F5F3FF; color: #6D28D9; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-completed { background-color: #F0FDF4; color: #15803D; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-paused { background-color: #F3F4F6; color: #6B7280; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-approved { background-color: #F0FDF4; color: #15803D; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-revision_requested { background-color: #FEFCE8; color: #A16207; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+.badge-rejected { background-color: #FEF2F2; color: #DC2626; display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+
+/* Misc */
+.page-header { border-bottom: 1px solid #E8EBF0; background-color: white; }
+.section-bar { background-color: #E63329; color: white; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.875rem; padding: 0.625rem 1rem; border-radius: 0.25rem; }
+
+/* Animate spin */
+@keyframes spin { to { transform: rotate(360deg); } }
+.animate-spin { animation: spin 1s linear infinite; }
