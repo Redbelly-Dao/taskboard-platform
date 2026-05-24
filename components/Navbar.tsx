@@ -30,7 +30,7 @@ export default function Navbar() {
         <div className="flex items-center gap-4">
           {appUser && (
             <div className="flex items-center gap-4">
-              <Link href={dashboardHref} className="btn-ghost text-sm">Dashboard</Link>
+              <Link href="/dashboard" className="btn-ghost text-sm">Dashboard</Link>
               {appUser.role === "admin" && (
                 <Link href="/admin" className="btn-ghost text-sm hidden sm:block">Admin</Link>
               )}
