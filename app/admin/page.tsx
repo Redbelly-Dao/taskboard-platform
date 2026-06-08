@@ -54,6 +54,12 @@ export default function AdminPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
+  // Override modal
+  const [overrideSub, setOverrideSub] = useState<any>(null);
+  const [overrideDecision, setOverrideDecision] = useState<"approved" | "rejected" | "">("");
+  const [overrideFeedback, setOverrideFeedback] = useState("");
+  const [overriding, setOverriding] = useState(false);
+
   // RBNT price oracle
   const [rbntPrice, setRbntPrice] = useState<number | null>(null);
   const [rbntPriceLoading, setRbntPriceLoading] = useState(false);
@@ -134,6 +140,35 @@ export default function AdminPage() {
   const suspendUser = async (userId: string, suspend: boolean) => {
     await updateDoc(doc(db, "users", userId), { suspended: suspend });
     setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, suspended: suspend } : u));
+  };
+
+  const applyAdminOverride = async () => {
+    if (!overrideSub || !overrideDecision || !overrideFeedback.trim()) return;
+    setOverriding(true);
+    try {
+      await updateDoc(doc(db, "submissions", overrideSub.id), {
+        status: overrideDecision === "approved" ? "approved" : "rejected",
+        reviewDecision: overrideDecision,
+        adminOverride: true,
+        adminOverrideBy: user?.uid,
+        adminOverrideWallet: appUser?.walletAddress,
+        adminOverrideFeedback: overrideFeedback,
+        adminOverrideAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setSubmissions((prev) => prev.map((s) =>
+        s.id === overrideSub.id
+          ? { ...s, status: overrideDecision === "approved" ? "approved" : "rejected", reviewDecision: overrideDecision, adminOverride: true }
+          : s
+      ));
+      setOverrideSub(null);
+      setOverrideDecision("");
+      setOverrideFeedback("");
+    } catch {
+      alert("Override failed. Please try again.");
+    } finally {
+      setOverriding(false);
+    }
   };
 
   const updateTaskStatus = async (taskId: string, newStatus: Task["status"]) => {
@@ -314,6 +349,7 @@ export default function AdminPage() {
                     <th className="text-left px-4 py-3 font-semibold">Score</th>
                     <th className="text-left px-4 py-3 font-semibold">Submitted</th>
                     <th className="text-left px-4 py-3 font-semibold">Links</th>
+                    <th className="text-left px-4 py-3 font-semibold">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -328,7 +364,10 @@ export default function AdminPage() {
                         {sub.discordHandle && <p className="text-xs text-[#888888]">{sub.discordHandle}</p>}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`badge-${sub.status}`}>{sub.status?.replace("_", " ")}</span>
+                        <div className="flex flex-col gap-1">
+                          <span className={`badge-${sub.status}`}>{sub.status?.replace(/_/g, " ")}</span>
+                          {sub.adminOverride && <span className="badge bg-yellow-50 text-yellow-700">overridden</span>}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-xs">
                         {sub.reviewTotalScore ? <span className="font-bold text-[#E63329]">{sub.reviewTotalScore}/35</span> : "-"}
@@ -343,10 +382,22 @@ export default function AdminPage() {
                           {sub.fileUrl && <a href={sub.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#E63329] font-semibold hover:underline">File</a>}
                         </div>
                       </td>
+                      <td className="px-4 py-3">
+                        {sub.status === "under_review" ? (
+                          <a href="/reviewer" className="text-xs text-[#E63329] font-semibold hover:underline">Review</a>
+                        ) : (
+                          <button
+                            onClick={() => { setOverrideSub(sub); setOverrideDecision(""); setOverrideFeedback(""); }}
+                            className="text-xs text-[#888888] font-semibold hover:text-[#E63329] transition-colors"
+                          >
+                            Override
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {submissions.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-[#AAAAAA]">No submissions yet.</td></tr>
+                    <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-[#AAAAAA]">No submissions yet.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -737,6 +788,99 @@ export default function AdminPage() {
                 Delete
               </button>
               <button onClick={() => setDeleteConfirmId(null)} className="btn-secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── OVERRIDE MODAL ── */}
+      {overrideSub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+            <div className="px-6 py-4 border-b border-[#E8EBF0] flex items-center justify-between" style={{ backgroundColor: "#2C2C2C" }}>
+              <div>
+                <p className="text-white font-bold text-sm">Admin Override</p>
+                <p className="text-white/50 text-xs font-mono">{overrideSub.taskId}</p>
+              </div>
+              <button onClick={() => setOverrideSub(null)} className="text-white/50 hover:text-white text-xl leading-none">×</button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Existing review summary */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-[#F4F5F7] rounded-lg p-3">
+                  <p className="text-xs text-[#AAAAAA] mb-1">Score</p>
+                  <p className="text-lg font-bold text-[#E63329]">
+                    {overrideSub.reviewTotalScore ?? "?"}<span className="text-xs font-normal text-[#AAAAAA]">/35</span>
+                  </p>
+                </div>
+                <div className="bg-[#F4F5F7] rounded-lg p-3">
+                  <p className="text-xs text-[#AAAAAA] mb-1">Decision</p>
+                  <p className="text-sm font-semibold text-[#1A1A2E] capitalize">{overrideSub.reviewDecision ?? "none"}</p>
+                </div>
+                <div className="bg-[#F4F5F7] rounded-lg p-3">
+                  <p className="text-xs text-[#AAAAAA] mb-1">Status</p>
+                  <span className={`badge-${overrideSub.status}`}>{overrideSub.status?.replace(/_/g, " ")}</span>
+                </div>
+              </div>
+
+              {overrideSub.reviewerWallet && (
+                <div className="text-xs">
+                  <span className="text-[#AAAAAA]">Reviewed by: </span>
+                  <span className="font-mono text-[#555555]">{overrideSub.reviewerWallet}</span>
+                </div>
+              )}
+
+              <div className="bg-[#FEF0EF] rounded-lg p-3 text-xs text-[#555555]">
+                <span className="font-semibold text-[#E63329]">Warning: </span>
+                This changes the submission status and affects payment eligibility. Document your reason clearly.
+              </div>
+
+              <div>
+                <p className="label mb-3">New Decision</p>
+                <div className="flex gap-3">
+                  {(["approved", "rejected"] as const).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setOverrideDecision(d)}
+                      className={`px-5 py-2 rounded text-sm font-semibold transition-colors capitalize ${
+                        overrideDecision === d
+                          ? d === "approved" ? "bg-green-600 text-white" : "bg-red-600 text-white"
+                          : "bg-white border border-[#E8EBF0] text-[#555555] hover:border-[#555555]"
+                      }`}
+                    >
+                      {d.charAt(0).toUpperCase() + d.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Override Reason <span className="text-[#E63329]">*</span></label>
+                <textarea
+                  className="input resize-none"
+                  rows={3}
+                  placeholder="Explain why this decision is being overridden. Reference the specific benchmark or failure criterion."
+                  value={overrideFeedback}
+                  onChange={(e) => setOverrideFeedback(e.target.value)}
+                  maxLength={500}
+                />
+                <p className="text-xs text-[#AAAAAA] mt-1 text-right">{overrideFeedback.length}/500</p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-[#E8EBF0] flex items-center gap-3 bg-[#F4F5F7]">
+              <button
+                onClick={applyAdminOverride}
+                disabled={overriding || !overrideDecision || !overrideFeedback.trim()}
+                className="btn-primary"
+              >
+                {overriding ? (
+                  <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Applying...</>
+                ) : "Apply Override"}
+              </button>
+              <button onClick={() => setOverrideSub(null)} className="btn-secondary">Cancel</button>
             </div>
           </div>
         </div>

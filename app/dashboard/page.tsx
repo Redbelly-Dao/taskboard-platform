@@ -218,7 +218,7 @@ export default function DashboardPage() {
                         {sub.createdAt?.toDate?.()?.toLocaleDateString() ?? "-"}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`badge-${sub.status}`}>{getStatusLabel(sub.status)}</span>
+                        <span className={`badge-${sub.status}`}>{sub.status.replace(/_/g, " ")}</span>
                       </td>
                       <td className="px-4 py-3">
                         <Link href={`/tasks/${sub.taskId}`} className="text-[#E63329] text-xs font-semibold hover:underline">
