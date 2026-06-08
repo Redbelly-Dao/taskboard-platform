@@ -1,0 +1,35 @@
+================================================================
+DAO WEBSITE - APPLICATION INSTRUCTIONS
+(Universal - paste this in the Description field on the DAO website after the short description for every task. Change TASK-01 to the relevant task number.)
+================================================================
+
+To apply and submit your work, visit the Redbelly DAO Task Board:
+https://redbelly-dao-taskboard.vercel.app/tasks/TASK-01
+
+Create an account, connect your verified wallet, and click Start Submission to read the full brief including all technical requirements, deliverables, quality benchmarks, and failure criteria. All submissions are reviewed by the DAO reviewer team before payment is processed.
+
+Note: Only DAO-verified wallet addresses are eligible. Your wallet will be cross-verified against DAO records before payment is disbursed.
+
+
+================================================================
+ADMIN DASHBOARD - TASK-01 TECHNICAL REQUIREMENTS
+(Paste each line as a separate item in the Technical Requirements field)
+================================================================
+
+Build an ERC-20 token contract that blocks unverified users from minting or transferring tokens
+Integrate with Redbelly's hasChainPermission(address) function from the Eligibility SDK
+Users must complete KYC through the Individual Onboarding SDK before interacting with the token
+Contract must revert with clear, descriptive error messages when unverified users attempt restricted actions
+Configurable option allowing the contract owner to toggle whether transfers (not just minting) require verification
+Admin function to update the eligibility contract address in case Redbelly deploys updated infrastructure
+
+
+================================================================
+ADMIN DASHBOARD - TASK-01 INFRASTRUCTURE / RESOURCES
+(Paste each line as a separate item in the Infrastructure / Resources field)
+================================================================
+
+useHasChainPermission hook: https://docs.redbelly.network/pages/eligibility-sdk/client/hooks/useHasChainPermission/
+Individual Onboarding SDK widget for KYC flow
+Redbelly Testnet RPC: https://rpc-testnet.redbelly.network
+Chain ID: 153

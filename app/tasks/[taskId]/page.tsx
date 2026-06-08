@@ -199,6 +199,20 @@ export default function TaskPage() {
           <p className="text-sm text-[#555555] leading-relaxed">{task.problem}</p>
         </div>
 
+        {task.technicalRequirements && task.technicalRequirements.length > 0 && (
+          <div className="card p-6 mb-4">
+            <h2 className="font-bold text-xs uppercase tracking-wider text-[#888888] mb-3">Technical Requirements</h2>
+            <ul className="space-y-2">
+              {task.technicalRequirements.map((r, i) => (
+                <li key={i} className="flex gap-2 text-sm text-[#555555]">
+                  <span className="text-[#E63329] font-bold shrink-0">—</span>
+                  <span className="leading-relaxed">{r}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="card p-6 mb-4">
           <h2 className="font-bold text-xs uppercase tracking-wider text-[#888888] mb-3">Required Deliverables</h2>
           <ol className="space-y-2">
@@ -223,7 +237,7 @@ export default function TaskPage() {
           </ul>
         </div>
 
-        <div className="card p-6 mb-6">
+        <div className="card p-6 mb-4">
           <h2 className="font-bold text-xs uppercase tracking-wider text-[#888888] mb-3">Failure Criteria</h2>
           <ul className="space-y-2">
             {task.failureCriteria.map((f, i) => (
@@ -234,6 +248,24 @@ export default function TaskPage() {
             ))}
           </ul>
         </div>
+
+        {task.infrastructure && task.infrastructure.length > 0 && (
+          <div className="card p-6 mb-6">
+            <h2 className="font-bold text-xs uppercase tracking-wider text-[#888888] mb-3">Infrastructure / Resources</h2>
+            <ul className="space-y-2">
+              {task.infrastructure.map((r, i) => (
+                <li key={i} className="flex gap-2 text-sm text-[#555555]">
+                  <span className="text-[#AAAAAA] shrink-0">→</span>
+                  {r.startsWith("http") ? (
+                    <a href={r} target="_blank" rel="noopener noreferrer" className="leading-relaxed text-[#E63329] hover:underline break-all">{r}</a>
+                  ) : (
+                    <span className="leading-relaxed break-all">{r}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Submission — contributors only */}
         {appUser?.role === "contributor" && (existingSub ? (

@@ -15,6 +15,8 @@ export interface Task {
   deliverables: string[];
   qualityBenchmarks: string[];
   failureCriteria: string[];
+  technicalRequirements?: string[];
+  infrastructure?: string[];
 }
 
 export const formatReward = (rbnt?: number, usd?: number): string => {

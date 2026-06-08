@@ -108,6 +108,8 @@ export default function AdminPage() {
   const [formDeliverables, setFormDeliverables] = useState<string[]>([""]);
   const [formBenchmarks, setFormBenchmarks] = useState<string[]>([""]);
   const [formFailure, setFormFailure] = useState<string[]>([""]);
+  const [formTechnicalReqs, setFormTechnicalReqs] = useState<string[]>([""]);
+  const [formInfrastructure, setFormInfrastructure] = useState<string[]>([""]);
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -186,7 +188,8 @@ export default function AdminPage() {
     setFormTaskId(`TASK-${nextNum.toString().padStart(2, "0")}`);
     setFormTitle(""); setFormCategory("developer"); setFormReward(""); setFormRewardRbnt("");
     setFormPaymentSplit("100% RBNT"); setFormStatus("open"); setFormShortDesc(""); setFormProblem("");
-    setFormDeliverables([""]); setFormBenchmarks([""]); setFormFailure([""]); setFormError("");
+    setFormDeliverables([""]); setFormBenchmarks([""]); setFormFailure([""]);
+    setFormTechnicalReqs([""]); setFormInfrastructure([""]); setFormError("");
     setTaskFormOpen(true);
   };
 
@@ -199,6 +202,8 @@ export default function AdminPage() {
     setFormDeliverables([...task.deliverables, ""]);
     setFormBenchmarks([...task.qualityBenchmarks, ""]);
     setFormFailure([...task.failureCriteria, ""]);
+    setFormTechnicalReqs([...(task.technicalRequirements ?? []), ""]);
+    setFormInfrastructure([...(task.infrastructure ?? []), ""]);
     setFormError("");
     setTaskFormOpen(true);
   };
@@ -232,6 +237,8 @@ export default function AdminPage() {
         deliverables: formDeliverables.filter((d) => d.trim()),
         qualityBenchmarks: formBenchmarks.filter((b) => b.trim()),
         failureCriteria: formFailure.filter((f) => f.trim()),
+        technicalRequirements: formTechnicalReqs.filter((r) => r.trim()),
+        infrastructure: formInfrastructure.filter((r) => r.trim()),
       };
 
       await setDoc(doc(db, "tasks", formTaskId.trim().toUpperCase()), taskData);
@@ -761,6 +768,9 @@ export default function AdminPage() {
                   onChange={(e) => setFormProblem(e.target.value)} placeholder="Why does this task exist? What problem does it solve?" />
               </div>
 
+              {/* Technical Requirements */}
+              <ListEditor label="Technical Requirements" items={formTechnicalReqs} setItems={setFormTechnicalReqs} placeholder="Requirement" />
+
               {/* Deliverables */}
               <ListEditor label="Required Deliverables" items={formDeliverables} setItems={setFormDeliverables} placeholder="Deliverable" />
 
@@ -769,6 +779,9 @@ export default function AdminPage() {
 
               {/* Failure criteria */}
               <ListEditor label="Failure Criteria" items={formFailure} setItems={setFormFailure} placeholder="Criterion" />
+
+              {/* Infrastructure / Resources */}
+              <ListEditor label="Infrastructure / Resources" items={formInfrastructure} setItems={setFormInfrastructure} placeholder="Resource name or URL" />
             </div>
 
             {/* Panel footer */}
