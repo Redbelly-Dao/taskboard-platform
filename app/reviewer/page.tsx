@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { Task, getCategoryLabel, formatReward } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
+import SubmissionChat from "@/components/SubmissionChat";
 
 const RUBRIC_CRITERIA = [
   "Deliverable completeness: does the submission include everything listed in Required Deliverables?",
@@ -276,6 +277,10 @@ export default function ReviewerPage() {
                     </div>
                   ) : null;
                 })()}
+
+                <div className="card p-5">
+                  <SubmissionChat submissionId={selected.id} />
+                </div>
               </div>
 
               {/* Rubric or override panel */}

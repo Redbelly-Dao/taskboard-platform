@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { Task, TaskCategory, getCategoryLabel, getStatusLabel, formatReward } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
+import SubmissionChat from "@/components/SubmissionChat";
 
 type AdminTab = "submissions" | "tasks" | "users" | "payments";
 
@@ -53,6 +54,9 @@ export default function AdminPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
+
+  // Audit panel
+  const [auditSub, setAuditSub] = useState<any>(null);
 
   // Override modal
   const [overrideSub, setOverrideSub] = useState<any>(null);
@@ -383,16 +387,24 @@ export default function AdminPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {sub.status === "under_review" ? (
-                          <a href="/reviewer" className="text-xs text-[#E63329] font-semibold hover:underline">Review</a>
-                        ) : (
+                        <div className="flex flex-col gap-1.5">
                           <button
-                            onClick={() => { setOverrideSub(sub); setOverrideDecision(""); setOverrideFeedback(""); }}
-                            className="text-xs text-[#888888] font-semibold hover:text-[#E63329] transition-colors"
+                            onClick={() => setAuditSub(sub)}
+                            className="text-xs text-[#E63329] font-semibold hover:underline text-left"
                           >
-                            Override
+                            View
                           </button>
-                        )}
+                          {sub.status === "under_review" ? (
+                            <a href="/reviewer" className="text-xs text-[#888888] font-semibold hover:underline">Review</a>
+                          ) : (
+                            <button
+                              onClick={() => { setOverrideSub(sub); setOverrideDecision(""); setOverrideFeedback(""); }}
+                              className="text-xs text-[#888888] font-semibold hover:text-[#E63329] transition-colors text-left"
+                            >
+                              Override
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -788,6 +800,138 @@ export default function AdminPage() {
                 Delete
               </button>
               <button onClick={() => setDeleteConfirmId(null)} className="btn-secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── AUDIT PANEL ── */}
+      {auditSub && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/40" onClick={() => setAuditSub(null)} />
+          <div className="w-full max-w-2xl bg-white flex flex-col shadow-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#E8EBF0] flex items-center justify-between flex-shrink-0" style={{ backgroundColor: "#2C2C2C" }}>
+              <div>
+                <h2 className="font-bold text-white text-sm">Submission Audit</h2>
+                <p className="text-white/50 text-xs font-mono">{auditSub.taskId}</p>
+              </div>
+              <button onClick={() => setAuditSub(null)} className="text-white/50 hover:text-white text-xl leading-none">×</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Submission info */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#888888] mb-3">Submission</p>
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <span className="text-[#AAAAAA]">Contributor: </span>
+                    <span className="font-mono text-[#1A1A2E]">{auditSub.walletAddress}</span>
+                  </div>
+                  {auditSub.discordHandle && (
+                    <div><span className="text-[#AAAAAA]">Discord: </span><span className="text-[#1A1A2E]">{auditSub.discordHandle}</span></div>
+                  )}
+                  <div>
+                    <span className="text-[#AAAAAA]">Submitted: </span>
+                    <span className="text-[#555555]">{auditSub.createdAt?.toDate?.()?.toLocaleDateString() ?? "-"}</span>
+                  </div>
+                  <div className="flex gap-3 pt-1 flex-wrap">
+                    {auditSub.githubLink && <a href={auditSub.githubLink} target="_blank" rel="noopener noreferrer" className="text-[#E63329] font-semibold hover:underline">GitHub →</a>}
+                    {auditSub.liveLink && <a href={auditSub.liveLink} target="_blank" rel="noopener noreferrer" className="text-[#E63329] font-semibold hover:underline">Live →</a>}
+                    {auditSub.fileUrl && <a href={auditSub.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[#E63329] font-semibold hover:underline">File →</a>}
+                  </div>
+                  {auditSub.notes && (
+                    <div className="mt-2 p-3 bg-[#F4F5F7] rounded-lg">
+                      <p className="text-[#AAAAAA] mb-1">Notes from contributor</p>
+                      <p className="text-[#555555] leading-relaxed">{auditSub.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Review summary */}
+              {auditSub.reviewerWallet && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#888888] mb-3">Review</p>
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="bg-[#F4F5F7] rounded-lg p-3">
+                      <p className="text-xs text-[#AAAAAA] mb-1">Score</p>
+                      <p className="text-xl font-bold text-[#E63329]">
+                        {auditSub.reviewTotalScore ?? "?"}<span className="text-sm font-normal text-[#AAAAAA]">/35</span>
+                      </p>
+                    </div>
+                    <div className="bg-[#F4F5F7] rounded-lg p-3">
+                      <p className="text-xs text-[#AAAAAA] mb-1">Decision</p>
+                      <span className={`badge-${auditSub.status}`}>{auditSub.status?.replace(/_/g, " ")}</span>
+                    </div>
+                    <div className="bg-[#F4F5F7] rounded-lg p-3">
+                      <p className="text-xs text-[#AAAAAA] mb-1">Reviewed</p>
+                      <p className="text-xs text-[#555555]">{auditSub.reviewedAt?.toDate?.()?.toLocaleDateString() ?? "-"}</p>
+                    </div>
+                  </div>
+                  <div className="text-xs mb-3">
+                    <span className="text-[#AAAAAA]">Reviewer wallet: </span>
+                    <span className="font-mono text-[#555555]">{auditSub.reviewerWallet}</span>
+                  </div>
+
+                  {/* Rubric breakdown */}
+                  {auditSub.reviewScores?.length > 0 && (
+                    <div className="space-y-2">
+                      {[
+                        "Deliverable completeness",
+                        "Quality Benchmarks met",
+                        "Technical accuracy",
+                        "Documentation quality",
+                        "Test coverage / verification",
+                        "Failure Criteria avoided",
+                        "Overall standard",
+                      ].map((criterion, i) => (
+                        <div key={i} className="border border-[#E8EBF0] rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-xs font-semibold text-[#1A1A2E]">{criterion}</p>
+                            <div className="flex items-center gap-1.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <div key={s} className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center ${
+                                  auditSub.reviewScores[i] === s ? "bg-[#E63329] text-white" : "bg-[#F4F5F7] text-[#AAAAAA]"
+                                }`}>{s}</div>
+                              ))}
+                            </div>
+                          </div>
+                          {auditSub.reviewJustifications?.[i] && (
+                            <p className="text-xs text-[#555555] italic">{auditSub.reviewJustifications[i]}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {auditSub.requiredChanges && (
+                    <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs">
+                      <p className="font-semibold text-yellow-800 mb-1">Required Changes</p>
+                      <p className="text-yellow-700 whitespace-pre-line">{auditSub.requiredChanges}</p>
+                      {auditSub.revisionDeadline && (
+                        <p className="text-yellow-600 mt-1">Deadline: {auditSub.revisionDeadline}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Admin override history */}
+              {auditSub.adminOverride && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#888888] mb-3">Admin Override</p>
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs">
+                    <div className="mb-1">
+                      <span className="text-[#AAAAAA]">Overridden by: </span>
+                      <span className="font-mono text-[#555555]">{auditSub.adminOverrideWallet}</span>
+                    </div>
+                    <p className="text-yellow-700">{auditSub.adminOverrideFeedback}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Chat */}
+              <SubmissionChat submissionId={auditSub.id} />
             </div>
           </div>
         </div>

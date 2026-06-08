@@ -37,6 +37,20 @@ service cloud.firestore {
         role() in ["reviewer", "admin"]
       );
       allow update: if request.auth != null && role() in ["reviewer", "admin"];
+
+      // Submission chat messages
+      match /messages/{messageId} {
+        allow read: if request.auth != null && (
+          get(/databases/$(database)/documents/submissions/$(submissionId)).data.contributorId == request.auth.uid ||
+          role() in ["reviewer", "admin"]
+        );
+        allow create: if request.auth != null
+          && request.resource.data.senderId == request.auth.uid
+          && (
+            get(/databases/$(database)/documents/submissions/$(submissionId)).data.contributorId == request.auth.uid ||
+            role() in ["reviewer", "admin"]
+          );
+      }
     }
   }
 }

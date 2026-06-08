@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { useUploadThing } from "@/lib/uploadthing";
 import { Task, getCategoryLabel, formatReward } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
+import SubmissionChat from "@/components/SubmissionChat";
 import Link from "next/link";
 
 export default function TaskPage() {
@@ -251,6 +252,10 @@ export default function TaskPage() {
                 <p className="text-xs text-yellow-700">{existingSub.adminOverrideFeedback}</p>
               </div>
             )}
+
+            <div className="mt-5 pt-5 border-t border-[#E8EBF0]">
+              <SubmissionChat submissionId={existingSub.id} />
+            </div>
           </div>
         ) : (
           <div className="card p-6">
