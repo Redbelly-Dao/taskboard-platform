@@ -36,7 +36,14 @@ service cloud.firestore {
         resource.data.contributorId == request.auth.uid ||
         role() in ["reviewer", "admin"]
       );
-      allow update: if request.auth != null && role() in ["reviewer", "admin"];
+      allow update: if request.auth != null && (
+        role() in ["reviewer", "admin"] ||
+        (
+          resource.data.contributorId == request.auth.uid &&
+          resource.data.status == "revision_requested" &&
+          request.resource.data.status == "under_review"
+        )
+      );
 
       // Submission chat messages
       match /messages/{messageId} {

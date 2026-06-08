@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { collection, addDoc, query, where, getDocs, doc, getDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, updateDoc, query, where, getDocs, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { useUploadThing } from "@/lib/uploadthing";
@@ -19,6 +19,7 @@ export default function TaskPage() {
   const [taskLoading, setTaskLoading] = useState(true);
   const [existingSub, setExistingSub] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showResubmit, setShowResubmit] = useState(false);
 
   const [githubLink, setGithubLink] = useState("");
   const [liveLink, setLiveLink] = useState("");
@@ -100,6 +101,40 @@ export default function TaskPage() {
       router.replace("/dashboard");
     } catch {
       setSubmitError("Submission failed. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !existingSub) return;
+    setSubmitError("");
+    setSubmitting(true);
+    try {
+      let fileUrl = existingSub.fileUrl || "";
+      let fileName = existingSub.fileName || "";
+      if (file) {
+        const res = await startUpload([file]);
+        if (!res?.[0]) throw new Error("Upload failed");
+        fileUrl = res[0].ufsUrl;
+        fileName = file.name;
+      }
+      await updateDoc(doc(db, "submissions", existingSub.id), {
+        githubLink,
+        liveLink,
+        publishedLink,
+        notes,
+        fileUrl,
+        fileName,
+        status: "under_review",
+        updatedAt: serverTimestamp(),
+      });
+      setExistingSub((prev: any) => ({ ...prev, status: "under_review", githubLink, liveLink, publishedLink, notes, fileUrl, fileName }));
+      setShowResubmit(false);
+      setFile(null);
+    } catch {
+      setSubmitError("Resubmission failed. Please check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -250,6 +285,85 @@ export default function TaskPage() {
               <div className="mt-3 rounded-lg p-3 bg-yellow-50 border border-yellow-200">
                 <p className="text-xs font-semibold text-yellow-800 mb-1">Admin Review</p>
                 <p className="text-xs text-yellow-700">{existingSub.adminOverrideFeedback}</p>
+              </div>
+            )}
+
+            {existingSub.status === "revision_requested" && (
+              <div className="mt-5 pt-5 border-t border-[#E8EBF0]">
+                {!showResubmit ? (
+                  <button
+                    onClick={() => {
+                      setGithubLink(existingSub.githubLink || "");
+                      setLiveLink(existingSub.liveLink || "");
+                      setPublishedLink(existingSub.publishedLink || "");
+                      setNotes(existingSub.notes || "");
+                      setShowResubmit(true);
+                    }}
+                    className="btn-primary"
+                  >
+                    Submit Revision
+                  </button>
+                ) : (
+                  <form onSubmit={handleResubmit} className="space-y-4">
+                    <p className="text-sm font-semibold text-[#1A1A2E]">Update Your Submission</p>
+                    <div className="bg-[#FEF0EF] rounded-lg p-3">
+                      <p className="text-xs text-[#E63329] font-semibold mb-1">Address the reviewer&apos;s feedback</p>
+                      <p className="text-xs text-[#555555]">Update the fields below and resubmit. Your submission will go back into the review queue.</p>
+                    </div>
+                    <div>
+                      <label className="label">GitHub Repository Link</label>
+                      <input className="input" type="url" placeholder="https://github.com/…" value={githubLink} onChange={(e) => setGithubLink(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="label">Live URL <span className="text-[#AAAAAA] font-normal normal-case">(deployed app, Figma, etc.)</span></label>
+                      <input className="input" type="url" placeholder="https://…" value={liveLink} onChange={(e) => setLiveLink(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="label">Published Article or Documentation Link</label>
+                      <input className="input" type="url" placeholder="https://dev.to/ or https://medium.com/…" value={publishedLink} onChange={(e) => setPublishedLink(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="label">File Upload <span className="text-[#AAAAAA] font-normal normal-case">(PDF, ZIP, etc., max 32MB)</span></label>
+                      <input ref={fileRef} type="file" className="hidden" accept=".pdf,.zip,.docx,.md,.mp4,.fig" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                      <div onClick={() => fileRef.current?.click()} className="border-2 border-dashed border-[#E8EBF0] hover:border-[#E63329] rounded-lg p-6 text-center cursor-pointer transition-colors">
+                        {file ? (
+                          <p className="text-sm text-[#1A1A2E] font-semibold">{file.name}</p>
+                        ) : existingSub.fileName ? (
+                          <p className="text-sm text-[#555555]">Current: <span className="font-semibold">{existingSub.fileName}</span> — click to replace</p>
+                        ) : (
+                          <p className="text-sm text-[#AAAAAA]">Click to upload a file</p>
+                        )}
+                      </div>
+                      {uploadProgress > 0 && uploadProgress < 100 && (
+                        <div className="mt-2 bg-[#F4F5F7] rounded-full h-1.5">
+                          <div className="bg-[#E63329] h-1.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="label">Notes for Reviewer</label>
+                      <textarea className="input resize-none" rows={4}
+                        placeholder="Any design decisions, known limitations, or context the reviewer should know…"
+                        value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} />
+                      <p className="text-xs text-[#AAAAAA] mt-1">{notes.length}/1000</p>
+                    </div>
+                    {submitError && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <p className="text-red-700 text-xs">{submitError}</p>
+                      </div>
+                    )}
+                    <div className="flex gap-3 pt-2">
+                      <button type="submit" className="btn-primary" disabled={submitting || isUploading}>
+                        {isUploading ? (
+                          <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Uploading… {uploadProgress > 0 ? `${Math.round(uploadProgress)}%` : ""}</>
+                        ) : submitting ? (
+                          <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Submitting…</>
+                        ) : "Resubmit for Review"}
+                      </button>
+                      <button type="button" onClick={() => { setShowResubmit(false); setSubmitError(""); }} className="btn-secondary">Cancel</button>
+                    </div>
+                  </form>
+                )}
               </div>
             )}
 
