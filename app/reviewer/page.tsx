@@ -111,6 +111,7 @@ export default function ReviewerPage() {
         s.id === selected.id ? { ...s, reviewingBy: null, reviewingByWallet: null } : s
       ));
     }
+    setMyReviewsLoaded(false);
     setSelected(null);
   };
 
@@ -574,6 +575,7 @@ export default function ReviewerPage() {
                           <th className="text-left px-4 py-3 font-semibold">Decision</th>
                           <th className="text-left px-4 py-3 font-semibold">Score</th>
                           <th className="text-left px-4 py-3 font-semibold">Reviewed</th>
+                          <th className="px-4 py-3" />
                         </tr>
                       </thead>
                       <tbody>
@@ -600,6 +602,16 @@ export default function ReviewerPage() {
                             </td>
                             <td className="px-4 py-3 text-xs text-[#888888]">
                               {sub.reviewedAt?.toDate?.()?.toLocaleDateString() ?? "-"}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {sub.status === "under_review" && (
+                                <button
+                                  onClick={() => openReview(sub)}
+                                  className="btn-primary text-xs px-3 py-1.5 whitespace-nowrap"
+                                >
+                                  Review Again
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}
