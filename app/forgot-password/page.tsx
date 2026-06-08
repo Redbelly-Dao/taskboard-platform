@@ -27,7 +27,7 @@ function detectWallets(): DetectedWallet[] {
     }
   };
 
-  // OKX has its own namespace — always check it first so it's never missed
+  // OKX has its own namespace; always check it first so it's never missed
   if (window.okxwallet) {
     add("OKX Wallet", "okx", window.okxwallet);
   }
@@ -128,7 +128,7 @@ export default function ForgotPasswordPage() {
   const [selectedWallet, setSelectedWallet] = useState<DetectedWallet | null>(null);
 
   useEffect(() => {
-    // Wallets inject after a tick — detect on step change to sign
+    // Wallets inject after a tick; detect on step change to sign
     if (step === "sign") {
       const found = detectWallets();
       setDetectedWallets(found);
@@ -305,7 +305,7 @@ export default function ForgotPasswordPage() {
                   <ol className="text-xs text-[#555555] space-y-1 list-decimal list-inside">
                     <li>Select your wallet from the list below</li>
                     <li>Your wallet will show a human-readable message to sign</li>
-                    <li>No transaction, no gas — just a cryptographic proof</li>
+                    <li>No transaction, no gas: just a cryptographic proof</li>
                     <li>Signature expires in 10 minutes</li>
                   </ol>
                 </div>

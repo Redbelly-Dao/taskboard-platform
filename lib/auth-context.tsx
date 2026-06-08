@@ -19,6 +19,7 @@ export interface AppUser {
   email: string;
   role: UserRole;
   discordHandle?: string;
+  suspended?: boolean;
   createdAt: Date;
 }
 

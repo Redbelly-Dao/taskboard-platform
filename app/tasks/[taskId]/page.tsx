@@ -5,7 +5,7 @@ import { collection, addDoc, query, where, getDocs, doc, getDoc, serverTimestamp
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { useUploadThing } from "@/lib/uploadthing";
-import { Task, getCategoryLabel } from "@/lib/tasks";
+import { Task, getCategoryLabel, formatReward } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 
@@ -146,13 +146,13 @@ export default function TaskPage() {
             <div>
               <p className="text-xs text-[#AAAAAA] mb-0.5">Contributor Reward</p>
               <p className="text-2xl font-bold text-[#E63329]">
-                ${task.reward} <span className="text-sm font-normal text-[#888888]">{task.paymentSplit}</span>
+                {formatReward(task.rewardRbnt, task.reward)} <span className="text-sm font-normal text-[#888888]">{task.paymentSplit}</span>
               </p>
             </div>
             {task.reviewerComp > 0 && (
               <div>
                 <p className="text-xs text-[#AAAAAA] mb-0.5">Reviewer Comp</p>
-                <p className="text-lg font-bold text-[#1A1A2E]">${task.reviewerComp}</p>
+                <p className="text-lg font-bold text-[#1A1A2E]">{formatReward(task.rewardRbnt ? Math.round(task.rewardRbnt * 0.2) : undefined, task.reviewerComp)}</p>
               </div>
             )}
           </div>
@@ -203,20 +203,52 @@ export default function TaskPage() {
         {existingSub ? (
           <div className="card p-6 border-l-4 border-l-[#E63329]">
             <h2 className="font-bold text-[#1A1A2E] mb-3">Your Submission</h2>
-            <div className="flex items-center gap-2 mb-3">
-              <span className={`badge-${existingSub.status}`}>{existingSub.status.replace("_", " ")}</span>
+            <div className="flex items-center gap-2 mb-4">
+              <span className={`badge-${existingSub.status}`}>{existingSub.status.replace(/_/g, " ")}</span>
               <span className="text-xs text-[#AAAAAA]">
                 Submitted {existingSub.createdAt?.toDate?.()?.toLocaleDateString()}
               </span>
             </div>
+
+            <div className="space-y-2 text-xs mb-4">
+              {existingSub.reviewTotalScore && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[#AAAAAA]">Review score:</span>
+                  <span className="font-bold text-[#E63329]">{existingSub.reviewTotalScore}/35</span>
+                </div>
+              )}
+              {existingSub.reviewerWallet && (
+                <div>
+                  <span className="text-[#AAAAAA]">Reviewed by: </span>
+                  <span className="font-mono text-[#555555]">
+                    {existingSub.reviewerWallet.slice(0, 6)}...{existingSub.reviewerWallet.slice(-4)}
+                  </span>
+                </div>
+              )}
+            </div>
+
             {existingSub.reviewDecision && (
-              <div className={`rounded-lg p-3 mt-3 ${
+              <div className={`rounded-lg p-3 ${
                 existingSub.reviewDecision === "approved"
                   ? "bg-green-50 border border-green-200"
+                  : existingSub.reviewDecision === "rejected"
+                  ? "bg-red-50 border border-red-200"
                   : "bg-yellow-50 border border-yellow-200"
               }`}>
-                <p className="text-xs font-semibold mb-1 capitalize">{existingSub.reviewDecision}</p>
-                {existingSub.reviewFeedback && <p className="text-xs text-[#555555]">{existingSub.reviewFeedback}</p>}
+                <p className="text-xs font-semibold mb-1 capitalize">{existingSub.reviewDecision.replace("_", " ")}</p>
+                {existingSub.requiredChanges && (
+                  <p className="text-xs text-[#555555] whitespace-pre-line">{existingSub.requiredChanges}</p>
+                )}
+                {existingSub.revisionDeadline && (
+                  <p className="text-xs text-[#888888] mt-1">Deadline: {existingSub.revisionDeadline}</p>
+                )}
+              </div>
+            )}
+
+            {existingSub.adminOverride && (
+              <div className="mt-3 rounded-lg p-3 bg-yellow-50 border border-yellow-200">
+                <p className="text-xs font-semibold text-yellow-800 mb-1">Admin Review</p>
+                <p className="text-xs text-yellow-700">{existingSub.adminOverrideFeedback}</p>
               </div>
             )}
           </div>
@@ -253,7 +285,7 @@ export default function TaskPage() {
                 </div>
 
                 <div>
-                  <label className="label">File Upload <span className="text-[#AAAAAA] font-normal normal-case">(PDF, ZIP, etc. — max 32MB)</span></label>
+                  <label className="label">File Upload <span className="text-[#AAAAAA] font-normal normal-case">(PDF, ZIP, etc., max 32MB)</span></label>
                   <input ref={fileRef} type="file" className="hidden" accept=".pdf,.zip,.docx,.md,.mp4,.fig" onChange={(e) => setFile(e.target.files?.[0] || null)} />
                   <div onClick={() => fileRef.current?.click()} className="border-2 border-dashed border-[#E8EBF0] hover:border-[#E63329] rounded-lg p-6 text-center cursor-pointer transition-colors">
                     {file ? (

@@ -86,7 +86,7 @@ export default function RegisterPage() {
                   required
                 />
                 <p className="text-xs text-[#AAAAAA] mt-1">
-                  This is your username — use the wallet you will receive RBNT payments to.
+                  This is your username. Use the wallet you will receive RBNT payments to.
                 </p>
               </div>
 

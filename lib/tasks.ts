@@ -6,6 +6,7 @@ export interface Task {
   title: string;
   category: TaskCategory;
   reward: number;
+  rewardRbnt?: number;
   reviewerComp: number;
   paymentSplit: string;
   status: "open" | "assigned" | "in_progress" | "under_review" | "completed" | "paused";
@@ -15,6 +16,12 @@ export interface Task {
   qualityBenchmarks: string[];
   failureCriteria: string[];
 }
+
+export const formatReward = (rbnt?: number, usd?: number): string => {
+  if (rbnt && usd) return `${rbnt.toLocaleString()} RBNT (~$${usd})`;
+  if (rbnt) return `${rbnt.toLocaleString()} RBNT`;
+  return `$${usd ?? 0}`;
+};
 
 export const getCategoryLabel = (cat: TaskCategory): string => ({
   developer: "Developer Work",

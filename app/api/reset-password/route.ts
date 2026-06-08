@@ -16,7 +16,7 @@ function getAdminApp() {
 const walletToEmail = (wallet: string) =>
   `${wallet.toLowerCase()}@redbelly-taskboard.dao`;
 
-// Message the client must sign — includes a timestamp rounded to 5-minute windows
+// Message the client must sign; includes a timestamp rounded to 5-minute windows
 // so the signature is valid for at most ~10 minutes and can't be replayed later.
 export function buildResetMessage(wallet: string, windowTs: number) {
   return `Redbelly DAO Password Reset\nWallet: ${wallet.toLowerCase()}\nWindow: ${windowTs}`;

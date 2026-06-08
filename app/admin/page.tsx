@@ -8,7 +8,7 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { Task, TaskCategory, getCategoryLabel, getStatusLabel } from "@/lib/tasks";
+import { Task, TaskCategory, getCategoryLabel, getStatusLabel, formatReward } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
 
 type AdminTab = "submissions" | "tasks" | "users" | "payments";
@@ -54,6 +54,35 @@ export default function AdminPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
+  // RBNT price oracle
+  const [rbntPrice, setRbntPrice] = useState<number | null>(null);
+  const [rbntPriceLoading, setRbntPriceLoading] = useState(false);
+  const [rbntPriceError, setRbntPriceError] = useState("");
+
+  const fetchRbntPrice = async () => {
+    setRbntPriceLoading(true);
+    setRbntPriceError("");
+    try {
+      const res = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=redbelly-network-token&vs_currencies=usd"
+      );
+      const data = await res.json();
+      const price = data?.["redbelly-network-token"]?.usd;
+      if (!price) throw new Error("Price not found");
+      setRbntPrice(price);
+    } catch {
+      setRbntPriceError("Could not fetch price. Try again or enter manually.");
+    } finally {
+      setRbntPriceLoading(false);
+    }
+  };
+
+  const toRbnt = (usd: string) => {
+    const n = parseFloat(usd);
+    if (!rbntPrice || !n || isNaN(n)) return null;
+    return Math.round(n / rbntPrice).toLocaleString();
+  };
+
   // Task form state
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [taskFormMode, setTaskFormMode] = useState<"add" | "edit">("add");
@@ -61,7 +90,7 @@ export default function AdminPage() {
   const [formTitle, setFormTitle] = useState("");
   const [formCategory, setFormCategory] = useState<TaskCategory>("developer");
   const [formReward, setFormReward] = useState("");
-  const [formReviewerComp, setFormReviewerComp] = useState("");
+  const [formRewardRbnt, setFormRewardRbnt] = useState("");
   const [formPaymentSplit, setFormPaymentSplit] = useState("100% RBNT");
   const [formStatus, setFormStatus] = useState<Task["status"]>("open");
   const [formShortDesc, setFormShortDesc] = useState("");
@@ -102,6 +131,11 @@ export default function AdminPage() {
     setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: newRole } : u));
   };
 
+  const suspendUser = async (userId: string, suspend: boolean) => {
+    await updateDoc(doc(db, "users", userId), { suspended: suspend });
+    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, suspended: suspend } : u));
+  };
+
   const updateTaskStatus = async (taskId: string, newStatus: Task["status"]) => {
     await updateDoc(doc(db, "tasks", taskId), { status: newStatus });
     setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: newStatus } : t));
@@ -111,7 +145,7 @@ export default function AdminPage() {
     const nextNum = tasks.length > 0 ? Math.max(...tasks.map((t) => t.number || 0)) + 1 : 1;
     setTaskFormMode("add");
     setFormTaskId(`TASK-${nextNum.toString().padStart(2, "0")}`);
-    setFormTitle(""); setFormCategory("developer"); setFormReward(""); setFormReviewerComp("");
+    setFormTitle(""); setFormCategory("developer"); setFormReward(""); setFormRewardRbnt("");
     setFormPaymentSplit("100% RBNT"); setFormStatus("open"); setFormShortDesc(""); setFormProblem("");
     setFormDeliverables([""]); setFormBenchmarks([""]); setFormFailure([""]); setFormError("");
     setTaskFormOpen(true);
@@ -120,7 +154,7 @@ export default function AdminPage() {
   const openEditTask = (task: Task) => {
     setTaskFormMode("edit");
     setFormTaskId(task.id); setFormTitle(task.title); setFormCategory(task.category);
-    setFormReward(task.reward.toString()); setFormReviewerComp(task.reviewerComp.toString());
+    setFormReward(task.reward.toString()); setFormRewardRbnt(task.rewardRbnt?.toString() ?? "");
     setFormPaymentSplit(task.paymentSplit); setFormStatus(task.status);
     setFormShortDesc(task.shortDescription); setFormProblem(task.problem);
     setFormDeliverables([...task.deliverables, ""]);
@@ -142,12 +176,16 @@ export default function AdminPage() {
         ? (tasks.find((t) => t.id === formTaskId)?.number ?? 0)
         : (tasks.length > 0 ? Math.max(...tasks.map((t) => t.number || 0)) + 1 : 1);
 
+      const rewardUsd = parseFloat(formReward) || 0;
+      const rewardRbnt = parseInt(formRewardRbnt) || 0;
+
       const taskData = {
         number: existingNum,
         title: formTitle.trim(),
         category: formCategory,
-        reward: parseFloat(formReward) || 0,
-        reviewerComp: parseFloat(formReviewerComp) || 0,
+        reward: rewardUsd,
+        rewardRbnt,
+        reviewerComp: Math.round(rewardUsd * 0.2 * 100) / 100,
         paymentSplit: formPaymentSplit.trim() || "100% RBNT",
         status: formStatus,
         shortDescription: formShortDesc.trim(),
@@ -203,6 +241,13 @@ export default function AdminPage() {
       <div className="w-8 h-8 border-2 border-[#E63329] border-t-transparent rounded-full animate-spin" />
     </div>
   );
+
+  const reviewerCompRbntDisplay = formRewardRbnt
+    ? `${Math.round(parseInt(formRewardRbnt) * 0.2).toLocaleString()} RBNT`
+    : "";
+  const reviewerCompUsdDisplay = formReward
+    ? `(~$${Math.round(parseFloat(formReward) * 0.2 * 100) / 100})`
+    : "";
 
   const stats = [
     { label: "Total Submissions", value: submissions.length },
@@ -286,10 +331,10 @@ export default function AdminPage() {
                         <span className={`badge-${sub.status}`}>{sub.status?.replace("_", " ")}</span>
                       </td>
                       <td className="px-4 py-3 text-xs">
-                        {sub.reviewTotalScore ? <span className="font-bold text-[#E63329]">{sub.reviewTotalScore}/35</span> : "—"}
+                        {sub.reviewTotalScore ? <span className="font-bold text-[#E63329]">{sub.reviewTotalScore}/35</span> : "-"}
                       </td>
                       <td className="px-4 py-3 text-xs text-[#888888]">
-                        {sub.createdAt?.toDate?.()?.toLocaleDateString() ?? "—"}
+                        {sub.createdAt?.toDate?.()?.toLocaleDateString() ?? "-"}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
@@ -339,7 +384,7 @@ export default function AdminPage() {
                         <td className="px-4 py-3">
                           <span className={`badge-${task.category}`}>{getCategoryLabel(task.category)}</span>
                         </td>
-                        <td className="px-4 py-3 text-xs font-bold text-[#E63329]">${task.reward}</td>
+                        <td className="px-4 py-3 text-xs font-bold text-[#E63329]">{formatReward(task.rewardRbnt, task.reward)}</td>
                         <td className="px-4 py-3">
                           <select
                             value={task.status}
@@ -390,30 +435,54 @@ export default function AdminPage() {
                     <th className="text-left px-4 py-3 font-semibold">Role</th>
                     <th className="text-left px-4 py-3 font-semibold">Joined</th>
                     <th className="text-left px-4 py-3 font-semibold">Change Role</th>
+                    <th className="text-left px-4 py-3 font-semibold">Access</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.map((u, i) => (
-                    <tr key={u.id} className={`border-b border-[#F4F5F7] ${i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
+                    <tr key={u.id} className={`border-b border-[#F4F5F7] ${u.suspended ? "opacity-50" : i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
                       <td className="px-4 py-3 font-mono text-xs text-[#1A1A2E]">{u.walletAddress}</td>
-                      <td className="px-4 py-3 text-xs text-[#888888]">{u.discordHandle || "—"}</td>
+                      <td className="px-4 py-3 text-xs text-[#888888]">{u.discordHandle || "-"}</td>
                       <td className="px-4 py-3">
-                        <span className={`badge ${
-                          u.role === "admin" ? "bg-[#FEF0EF] text-[#E63329]" :
-                          u.role === "reviewer" ? "bg-blue-50 text-blue-700" :
-                          "bg-[#F4F5F7] text-[#888888]"
-                        }`}>{u.role}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`badge ${
+                            u.role === "admin" ? "bg-[#FEF0EF] text-[#E63329]" :
+                            u.role === "reviewer" ? "bg-blue-50 text-blue-700" :
+                            "bg-[#F4F5F7] text-[#888888]"
+                          }`}>{u.role}</span>
+                          {u.suspended && (
+                            <span className="badge bg-red-50 text-red-600">suspended</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-xs text-[#888888]">
-                        {u.createdAt?.toDate?.()?.toLocaleDateString() ?? "—"}
+                        {u.createdAt?.toDate?.()?.toLocaleDateString() ?? "-"}
                       </td>
                       <td className="px-4 py-3">
-                        <select value={u.role} onChange={(e) => updateRole(u.id, e.target.value)}
-                          className="text-xs border border-[#E8EBF0] rounded-lg px-2 py-1 bg-white text-[#1A1A2E] focus:outline-none focus:border-[#E63329]">
-                          <option value="contributor">Contributor</option>
-                          <option value="reviewer">Reviewer</option>
-                          <option value="admin">Admin</option>
-                        </select>
+                        {u.role !== "admin" ? (
+                          <select value={u.role} onChange={(e) => updateRole(u.id, e.target.value)}
+                            className="text-xs border border-[#E8EBF0] rounded-lg px-2 py-1 bg-white text-[#1A1A2E] focus:outline-none focus:border-[#E63329]">
+                            <option value="contributor">Contributor</option>
+                            <option value="reviewer">Reviewer</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        ) : (
+                          <span className="text-xs text-[#AAAAAA]">Admin</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {u.role !== "admin" && (
+                          <button
+                            onClick={() => suspendUser(u.id, !u.suspended)}
+                            className={`text-xs font-semibold transition-colors ${
+                              u.suspended
+                                ? "text-green-600 hover:text-green-800"
+                                : "text-red-500 hover:text-red-700"
+                            }`}
+                          >
+                            {u.suspended ? "Unsuspend" : "Suspend"}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -435,7 +504,7 @@ export default function AdminPage() {
             </div>
             <div className="card overflow-hidden mb-4">
               <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: "#2C2C2C" }}>
-                <p className="text-white font-semibold text-sm">Approved — Pending Payment ({approvedSubmissions.length})</p>
+                <p className="text-white font-semibold text-sm">Approved: Pending Payment ({approvedSubmissions.length})</p>
                 {approvedSubmissions.length > 0 && (
                   <button onClick={exportPaymentBatch} className="btn-primary text-xs px-3 py-1.5">Export CSV</button>
                 )}
@@ -458,9 +527,9 @@ export default function AdminPage() {
                         <tr key={sub.id} className={`border-b border-[#F4F5F7] ${i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
                           <td className="px-4 py-3 font-mono text-xs font-semibold text-[#1A1A2E]">{sub.taskId}</td>
                           <td className="px-4 py-3 font-mono text-xs text-[#1A1A2E]">{sub.walletAddress}</td>
-                          <td className="px-4 py-3 font-bold text-xs text-[#E63329]">${task?.reward ?? "—"}</td>
-                          <td className="px-4 py-3 font-mono text-xs text-[#888888]">{sub.reviewerWallet || "—"}</td>
-                          <td className="px-4 py-3 text-xs text-[#888888]">{task?.reviewerComp ? `$${task.reviewerComp}` : "N/A"}</td>
+                          <td className="px-4 py-3 font-bold text-xs text-[#E63329]">{task ? formatReward(task.rewardRbnt, task.reward) : "-"}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-[#888888]">{sub.reviewerWallet || "-"}</td>
+                          <td className="px-4 py-3 text-xs text-[#888888]">{task?.reviewerComp ? formatReward(task.rewardRbnt ? Math.round(task.rewardRbnt * 0.2) : undefined, task.reviewerComp) : "N/A"}</td>
                         </tr>
                       );
                     })}
@@ -547,19 +616,71 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Reward + ReviewerComp + Split */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="label">Reward ($)</label>
-                  <input className="input" type="number" value={formReward} onChange={(e) => setFormReward(e.target.value)} placeholder="0" />
+              {/* Reward + Split */}
+              <div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="label">Reward (RBNT)</label>
+                    <input className="input font-mono" type="number" value={formRewardRbnt} onChange={(e) => setFormRewardRbnt(e.target.value)} placeholder="10678" />
+                  </div>
+                  <div>
+                    <label className="label">USD Equivalent</label>
+                    <input className="input font-mono" type="number" value={formReward} onChange={(e) => setFormReward(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="label">Payment Split</label>
+                    <input className="input" value={formPaymentSplit} onChange={(e) => setFormPaymentSplit(e.target.value)} placeholder="100% RBNT" />
+                  </div>
                 </div>
-                <div>
-                  <label className="label">Reviewer Comp ($)</label>
-                  <input className="input" type="number" value={formReviewerComp} onChange={(e) => setFormReviewerComp(e.target.value)} placeholder="0" />
-                </div>
-                <div>
-                  <label className="label">Payment Split</label>
-                  <input className="input" value={formPaymentSplit} onChange={(e) => setFormPaymentSplit(e.target.value)} placeholder="100% RBNT" />
+
+                {/* Auto-calculated reviewer comp */}
+                {(formRewardRbnt || formReward) && (
+                  <div className="mt-2 rounded-lg border border-[#E8EBF0] bg-[#F4F5F7] px-3 py-2 flex items-center gap-2 flex-wrap text-xs text-[#555555]">
+                    <svg className="w-3 h-3 text-[#AAAAAA] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <span className="text-[#AAAAAA]">Reviewer comp (20%):</span>
+                    <span className="font-semibold text-[#1A1A2E]">
+                      {reviewerCompRbntDisplay}
+                      {reviewerCompRbntDisplay && reviewerCompUsdDisplay ? " " : ""}
+                      {reviewerCompUsdDisplay}
+                    </span>
+                  </div>
+                )}
+
+                {/* RBNT Price Oracle */}
+                <div className="mt-2 rounded-lg border border-[#E8EBF0] bg-[#F4F5F7] px-3 py-2.5 flex items-center gap-3 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={fetchRbntPrice}
+                    disabled={rbntPriceLoading}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-[#E63329] hover:underline disabled:opacity-50 flex-shrink-0"
+                  >
+                    {rbntPriceLoading ? (
+                      <span className="w-3 h-3 border-2 border-[#E63329] border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    )}
+                    Fetch RBNT price
+                  </button>
+
+                  {rbntPriceError && (
+                    <p className="text-xs text-red-500">{rbntPriceError}</p>
+                  )}
+
+                  {rbntPrice && !rbntPriceError && (
+                    <div className="flex items-center gap-3 flex-wrap text-xs">
+                      <span className="text-[#AAAAAA]">1 RBNT = <span className="font-mono font-semibold text-[#555555]">${rbntPrice.toFixed(6)}</span></span>
+                      {toRbnt(formReward) && (
+                        <span className="text-[#555555]">
+                          Reward: <span className="font-semibold text-[#1A1A2E]">{toRbnt(formReward)} RBNT</span>
+                        </span>
+                      )}
+
+                    </div>
+                  )}
                 </div>
               </div>
 
