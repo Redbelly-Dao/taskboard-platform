@@ -180,58 +180,23 @@ export default function DashboardPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-          {[
-            { label: "Open Tasks", value: tasksLoading ? "..." : openCount, accent: true },
-            { label: "My Submissions", value: subLoading ? "..." : mySubmissions.length, accent: false },
-            { label: "Under Review", value: subLoading ? "..." : mySubmissions.filter((s) => s.status === "under_review").length, accent: false },
-            { label: "Approved", value: subLoading ? "..." : mySubmissions.filter((s) => s.status === "approved").length, accent: false },
-          ].map((stat) => (
-            <div key={stat.label} className={`card p-4 ${stat.accent ? "border-l-4 border-l-[#E63329]" : ""}`}>
-              <p className="text-2xl font-bold text-[#1A1A2E]">{stat.value}</p>
-              <p className="text-xs text-[#888888] mt-0.5">{stat.label}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* My submissions */}
-        {!subLoading && mySubmissions.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-base font-bold text-[#1A1A2E] mb-3">My Submissions</h2>
-            <div className="card overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-white" style={{ backgroundColor: "#2C2C2C" }}>
-                    <th className="text-left px-4 py-3 font-semibold">Task</th>
-                    <th className="text-left px-4 py-3 font-semibold">Submitted</th>
-                    <th className="text-left px-4 py-3 font-semibold">Status</th>
-                    <th className="text-left px-4 py-3 font-semibold">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mySubmissions.map((sub, i) => (
-                    <tr key={sub.id} className={i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}>
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-[#1A1A2E] text-xs font-mono">{sub.taskId}</p>
-                        <p className="text-xs text-[#888888] truncate max-w-[220px]">{sub.taskTitle}</p>
-                      </td>
-                      <td className="px-4 py-3 text-[#888888] text-xs">
-                        {sub.createdAt?.toDate?.()?.toLocaleDateString() ?? "-"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`badge-${sub.status}`}>{sub.status.replace(/_/g, " ")}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link href={`/tasks/${sub.taskId}`} className="text-[#E63329] text-xs font-semibold hover:underline">
-                          View →
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="card p-4 border-l-4 border-l-[#E63329]">
+            <p className="text-2xl font-bold text-[#1A1A2E]">{tasksLoading ? "..." : openCount}</p>
+            <p className="text-xs text-[#888888] mt-0.5">Open Tasks</p>
           </div>
-        )}
+          <Link href="/submissions" className="card p-4 hover:border-[#E63329] transition-colors group">
+            <p className="text-2xl font-bold text-[#1A1A2E]">{subLoading ? "..." : mySubmissions.length}</p>
+            <p className="text-xs text-[#888888] mt-0.5 group-hover:text-[#E63329] transition-colors">My Submissions →</p>
+          </Link>
+          <div className="card p-4">
+            <p className="text-2xl font-bold text-[#1A1A2E]">{subLoading ? "..." : mySubmissions.filter((s) => s.status === "under_review").length}</p>
+            <p className="text-xs text-[#888888] mt-0.5">Under Review</p>
+          </div>
+          <div className="card p-4">
+            <p className="text-2xl font-bold text-[#1A1A2E]">{subLoading ? "..." : mySubmissions.filter((s) => s.status === "approved").length}</p>
+            <p className="text-xs text-[#888888] mt-0.5">Approved</p>
+          </div>
+        </div>
 
         {/* Category filter */}
         <div className="flex items-center gap-2 mb-5 flex-wrap">

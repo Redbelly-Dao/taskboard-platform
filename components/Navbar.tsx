@@ -32,10 +32,16 @@ export default function Navbar() {
             <div className="flex items-center gap-4">
               <Link href="/dashboard" className="btn-ghost text-sm">Dashboard</Link>
               {appUser.role === "admin" && (
-                <Link href="/admin" className="btn-ghost text-sm hidden sm:block">Admin</Link>
+                <>
+                  <Link href="/admin" className="btn-ghost text-sm hidden sm:block">Admin</Link>
+                  <Link href="/reviewer" className="btn-ghost text-sm hidden sm:block">Reviews</Link>
+                </>
               )}
               {appUser.role === "reviewer" && (
                 <Link href="/reviewer" className="btn-ghost text-sm hidden sm:block">Reviews</Link>
+              )}
+              {appUser.role === "contributor" && (
+                <Link href="/submissions" className="btn-ghost text-sm hidden sm:block">My Submissions</Link>
               )}
             </div>
           )}

@@ -199,8 +199,8 @@ export default function TaskPage() {
           </ul>
         </div>
 
-        {/* Submission */}
-        {existingSub ? (
+        {/* Submission — contributors only */}
+        {appUser?.role === "contributor" && (existingSub ? (
           <div className="card p-6 border-l-4 border-l-[#E63329]">
             <h2 className="font-bold text-[#1A1A2E] mb-3">Your Submission</h2>
             <div className="flex items-center gap-2 mb-4">
@@ -328,7 +328,7 @@ export default function TaskPage() {
               </form>
             )}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
