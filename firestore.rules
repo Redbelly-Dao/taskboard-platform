@@ -14,7 +14,8 @@ service cloud.firestore {
       );
       allow create: if request.auth != null
         && request.auth.uid == userId
-        && request.resource.data.role == "contributor";
+        && request.resource.data.role == "contributor"
+        && request.resource.data.approved == false;
       allow update: if request.auth != null && (
         role() == "admin" ||
         (request.auth.uid == userId && !("role" in request.resource.data.diff(resource.data).affectedKeys()))

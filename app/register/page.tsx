@@ -134,9 +134,9 @@ export default function RegisterPage() {
               <div className="bg-[#FEF0EF] rounded-lg p-3">
                 <p className="text-xs text-[#E63329] font-semibold mb-1">Before you register</p>
                 <p className="text-xs text-[#555555]">
-                  All new accounts are registered as Contributors. Reviewer and Administrator roles
-                  are assigned by admins after vetting. Reach out in{" "}
-                  <span className="font-semibold">#taskboard-updates</span> on Discord after registering.
+                  New accounts require admin approval before access is granted. After registering,
+                  reach out in <span className="font-semibold">#taskboard-updates</span> on Discord
+                  so an admin can approve your account.
                 </p>
               </div>
 

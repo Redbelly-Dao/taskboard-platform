@@ -20,6 +20,7 @@ export interface AppUser {
   role: UserRole;
   discordHandle?: string;
   suspended?: boolean;
+  approved?: boolean;
   createdAt: Date;
 }
 
@@ -76,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       role: "contributor",
       discordHandle: discordHandle || "",
+      approved: false,
       createdAt: new Date(),
     };
     try {
