@@ -16,7 +16,9 @@ export default function SuspendedGate({ children }: { children: React.ReactNode 
           <h1 className="text-xl font-bold text-[#1A1A2E] mb-2">Pending Approval</h1>
           <p className="text-sm text-[#555555] leading-relaxed mb-5">
             Your account is awaiting admin approval. You will gain access once an admin reviews and approves your registration.
-            Reach out in <span className="font-semibold">#taskboard-updates</span> on Discord to follow up.
+            Reach out in the{" "}
+            <a href="https://discord.com/channels/969088176322908160/1471738127860236424" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#E63329] hover:underline">#DAO TASKBOARD</a>
+            {" "}Discord channel to follow up.
           </p>
           <p className="text-xs text-[#AAAAAA] mb-6">
             Registered wallet: <span className="font-mono">{appUser.walletAddress}</span>
@@ -44,7 +46,7 @@ export default function SuspendedGate({ children }: { children: React.ReactNode 
           </p>
           <p className="text-sm text-[#555555] leading-relaxed mb-5">
             To unlock access, apply through the Redbelly DAO website to verify your membership,
-            then contact an admin on Discord.
+            then reach out in the <a href="https://discord.com/channels/969088176322908160/1471738127860236424" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#E63329] hover:underline">#DAO TASKBOARD</a> channel.
           </p>
           <p className="text-xs text-[#AAAAAA] mb-6">
             Registered wallet: <span className="font-mono">{appUser.walletAddress}</span>

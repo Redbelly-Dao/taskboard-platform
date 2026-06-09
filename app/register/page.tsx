@@ -135,8 +135,9 @@ export default function RegisterPage() {
                 <p className="text-xs text-[#E63329] font-semibold mb-1">Before you register</p>
                 <p className="text-xs text-[#555555]">
                   New accounts require admin approval before access is granted. After registering,
-                  reach out in <span className="font-semibold">#taskboard-updates</span> on Discord
-                  so an admin can approve your account.
+                  reach out in the{" "}
+                  <a href="https://discord.com/channels/969088176322908160/1471738127860236424" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#E63329] hover:underline">#DAO TASKBOARD</a>
+                  {" "}Discord channel so an admin can approve your account.
                 </p>
               </div>
 
