@@ -253,16 +253,28 @@ export default function TaskPage() {
           <div className="card p-6 mb-6">
             <h2 className="font-bold text-xs uppercase tracking-wider text-[#888888] mb-3">Infrastructure / Resources</h2>
             <ul className="space-y-2">
-              {task.infrastructure.map((r, i) => (
-                <li key={i} className="flex gap-2 text-sm text-[#555555]">
-                  <span className="text-[#AAAAAA] shrink-0">→</span>
-                  {r.startsWith("http") ? (
-                    <a href={r} target="_blank" rel="noopener noreferrer" className="leading-relaxed text-[#E63329] hover:underline break-all">{r}</a>
-                  ) : (
-                    <span className="leading-relaxed break-all">{r}</span>
-                  )}
-                </li>
-              ))}
+              {task.infrastructure.map((r, i) => {
+                const urlMatch = r.match(/(https?:\/\/\S+)/);
+                if (urlMatch) {
+                  const url = urlMatch[1];
+                  const label = r.replace(url, "").replace(/:\s*$/, "").trim();
+                  return (
+                    <li key={i} className="flex gap-2 text-sm text-[#555555]">
+                      <span className="text-[#AAAAAA] shrink-0">→</span>
+                      <span className="leading-relaxed">
+                        {label && <span>{label}: </span>}
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-[#E63329] hover:underline break-all">{url}</a>
+                      </span>
+                    </li>
+                  );
+                }
+                return (
+                  <li key={i} className="flex gap-2 text-sm text-[#555555]">
+                    <span className="text-[#AAAAAA] shrink-0">→</span>
+                    <span className="leading-relaxed">{r}</span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
