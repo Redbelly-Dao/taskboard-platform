@@ -113,7 +113,6 @@ export default function AdminPage() {
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [userSubTab, setUserSubTab] = useState<"pending" | "active">("pending");
 
   useEffect(() => {
     if (!loading && (!user || (appUser && appUser.role !== "admin"))) {
@@ -147,16 +146,6 @@ export default function AdminPage() {
   const suspendUser = async (userId: string, suspend: boolean) => {
     await updateDoc(doc(db, "users", userId), { suspended: suspend });
     setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, suspended: suspend } : u));
-  };
-
-  const approveUser = async (userId: string) => {
-    await updateDoc(doc(db, "users", userId), { approved: true });
-    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, approved: true } : u));
-  };
-
-  const denyUser = async (userId: string) => {
-    await deleteDoc(doc(db, "users", userId));
-    setUsers((prev) => prev.filter((u) => u.id !== userId));
   };
 
   const applyAdminOverride = async () => {
@@ -501,168 +490,77 @@ export default function AdminPage() {
         )}
 
         {/* ── USERS TAB ── */}
-        {tab === "users" && (() => {
-          const pendingUsers = users.filter((u) => u.approved === false);
-          const activeUsers = users.filter((u) => u.approved !== false);
-          return (
-            <div>
-              {/* Sub-tabs */}
-              <div className="flex gap-1 mb-4 bg-white border border-[#E8EBF0] rounded-lg p-1 w-fit shadow-sm">
-                <button
-                  onClick={() => setUserSubTab("pending")}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
-                    userSubTab === "pending" ? "bg-[#E63329] text-white shadow-sm" : "text-[#888888] hover:text-[#1A1A2E]"
-                  }`}
-                >
-                  Pending Approval
-                  {pendingUsers.length > 0 && (
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-                      userSubTab === "pending" ? "bg-white/20 text-white" : "bg-[#E63329] text-white"
-                    }`}>{pendingUsers.length}</span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setUserSubTab("active")}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                    userSubTab === "active" ? "bg-[#E63329] text-white shadow-sm" : "text-[#888888] hover:text-[#1A1A2E]"
-                  }`}
-                >
-                  Active Users
-                  {userSubTab === "active" && (
-                    <span className="ml-1 bg-white/20 text-white text-xs px-1.5 py-0.5 rounded-full">{activeUsers.length}</span>
-                  )}
-                </button>
-              </div>
-
-              {/* Pending approval sub-tab */}
-              {userSubTab === "pending" && (
-                <div className="card overflow-hidden">
-                  <div className="px-4 py-3" style={{ backgroundColor: "#2C2C2C" }}>
-                    <p className="text-white font-semibold text-sm">Pending Approval ({pendingUsers.length})</p>
-                  </div>
-                  {pendingUsers.length === 0 ? (
-                    <div className="px-4 py-12 text-center">
-                      <p className="text-sm text-[#AAAAAA]">No pending registrations.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-[#F4F5F7] text-xs text-[#888888] border-b border-[#E8EBF0]">
-                            <th className="text-left px-4 py-3 font-semibold">Wallet Address</th>
-                            <th className="text-left px-4 py-3 font-semibold">Discord</th>
-                            <th className="text-left px-4 py-3 font-semibold">Registered</th>
-                            <th className="text-left px-4 py-3 font-semibold">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {pendingUsers.map((u, i) => (
-                            <tr key={u.id} className={`border-b border-[#F4F5F7] ${i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
-                              <td className="px-4 py-3 font-mono text-xs text-[#1A1A2E]">{u.walletAddress}</td>
-                              <td className="px-4 py-3 text-xs text-[#888888]">{u.discordHandle || "-"}</td>
-                              <td className="px-4 py-3 text-xs text-[#888888]">
-                                {u.createdAt?.toDate?.()?.toLocaleDateString() ?? "-"}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-3">
-                                  <button
-                                    onClick={() => approveUser(u.id)}
-                                    className="text-xs font-semibold text-green-600 hover:text-green-800 transition-colors"
-                                  >
-                                    Approve
-                                  </button>
-                                  <button
-                                    onClick={() => denyUser(u.id)}
-                                    className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors"
-                                  >
-                                    Deny
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Active users sub-tab */}
-              {userSubTab === "active" && (
-                <div className="card overflow-hidden">
-                  <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: "#2C2C2C" }}>
-                    <p className="text-white font-semibold text-sm">Active Users ({activeUsers.length})</p>
-                    <p className="text-white/50 text-xs">Change roles via the dropdown</p>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-[#F4F5F7] text-xs text-[#888888] border-b border-[#E8EBF0]">
-                          <th className="text-left px-4 py-3 font-semibold">Wallet Address</th>
-                          <th className="text-left px-4 py-3 font-semibold">Discord</th>
-                          <th className="text-left px-4 py-3 font-semibold">Role</th>
-                          <th className="text-left px-4 py-3 font-semibold">Joined</th>
-                          <th className="text-left px-4 py-3 font-semibold">Change Role</th>
-                          <th className="text-left px-4 py-3 font-semibold">Access</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {activeUsers.map((u, i) => (
-                          <tr key={u.id} className={`border-b border-[#F4F5F7] ${u.suspended ? "opacity-50" : i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
-                            <td className="px-4 py-3 font-mono text-xs text-[#1A1A2E]">{u.walletAddress}</td>
-                            <td className="px-4 py-3 text-xs text-[#888888]">{u.discordHandle || "-"}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className={`badge ${
-                                  u.role === "admin" ? "bg-[#FEF0EF] text-[#E63329]" :
-                                  u.role === "reviewer" ? "bg-blue-50 text-blue-700" :
-                                  "bg-[#F4F5F7] text-[#888888]"
-                                }`}>{u.role}</span>
-                                {u.suspended && (
-                                  <span className="badge bg-red-50 text-red-600">suspended</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-xs text-[#888888]">
-                              {u.createdAt?.toDate?.()?.toLocaleDateString() ?? "-"}
-                            </td>
-                            <td className="px-4 py-3">
-                              {u.role !== "admin" ? (
-                                <select value={u.role} onChange={(e) => updateRole(u.id, e.target.value)}
-                                  className="text-xs border border-[#E8EBF0] rounded-lg px-2 py-1 bg-white text-[#1A1A2E] focus:outline-none focus:border-[#E63329]">
-                                  <option value="contributor">Contributor</option>
-                                  <option value="reviewer">Reviewer</option>
-                                  <option value="admin">Admin</option>
-                                </select>
-                              ) : (
-                                <span className="text-xs text-[#AAAAAA]">Admin</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              {u.role !== "admin" && (
-                                <button
-                                  onClick={() => suspendUser(u.id, !u.suspended)}
-                                  className={`text-xs font-semibold transition-colors ${
-                                    u.suspended
-                                      ? "text-green-600 hover:text-green-800"
-                                      : "text-red-500 hover:text-red-700"
-                                  }`}
-                                >
-                                  {u.suspended ? "Unsuspend" : "Suspend"}
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+        {tab === "users" && (
+          <div className="card overflow-hidden">
+            <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: "#2C2C2C" }}>
+              <p className="text-white font-semibold text-sm">All Users ({users.length})</p>
+              <p className="text-white/50 text-xs">Change roles via the dropdown</p>
             </div>
-          );
-        })()}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[#F4F5F7] text-xs text-[#888888] border-b border-[#E8EBF0]">
+                    <th className="text-left px-4 py-3 font-semibold">Wallet Address</th>
+                    <th className="text-left px-4 py-3 font-semibold">Discord</th>
+                    <th className="text-left px-4 py-3 font-semibold">Role</th>
+                    <th className="text-left px-4 py-3 font-semibold">Joined</th>
+                    <th className="text-left px-4 py-3 font-semibold">Change Role</th>
+                    <th className="text-left px-4 py-3 font-semibold">Access</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u, i) => (
+                    <tr key={u.id} className={`border-b border-[#F4F5F7] ${u.suspended ? "opacity-50" : i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
+                      <td className="px-4 py-3 font-mono text-xs text-[#1A1A2E]">{u.walletAddress}</td>
+                      <td className="px-4 py-3 text-xs text-[#888888]">{u.discordHandle || "-"}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`badge ${
+                            u.role === "admin" ? "bg-[#FEF0EF] text-[#E63329]" :
+                            u.role === "reviewer" ? "bg-blue-50 text-blue-700" :
+                            "bg-[#F4F5F7] text-[#888888]"
+                          }`}>{u.role}</span>
+                          {u.suspended && (
+                            <span className="badge bg-red-50 text-red-600">suspended</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#888888]">
+                        {u.createdAt?.toDate?.()?.toLocaleDateString() ?? "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {u.role !== "admin" ? (
+                          <select value={u.role} onChange={(e) => updateRole(u.id, e.target.value)}
+                            className="text-xs border border-[#E8EBF0] rounded-lg px-2 py-1 bg-white text-[#1A1A2E] focus:outline-none focus:border-[#E63329]">
+                            <option value="contributor">Contributor</option>
+                            <option value="reviewer">Reviewer</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        ) : (
+                          <span className="text-xs text-[#AAAAAA]">Admin</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {u.role !== "admin" && (
+                          <button
+                            onClick={() => suspendUser(u.id, !u.suspended)}
+                            className={`text-xs font-semibold transition-colors ${
+                              u.suspended
+                                ? "text-green-600 hover:text-green-800"
+                                : "text-red-500 hover:text-red-700"
+                            }`}
+                          >
+                            {u.suspended ? "Unsuspend" : "Suspend"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* ── PAYMENTS TAB ── */}
         {tab === "payments" && (

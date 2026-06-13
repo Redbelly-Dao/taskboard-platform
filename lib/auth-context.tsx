@@ -77,7 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       role: "contributor",
       discordHandle: discordHandle || "",
-      approved: false,
       createdAt: new Date(),
     };
     try {
