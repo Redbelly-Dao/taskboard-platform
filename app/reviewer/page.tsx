@@ -280,7 +280,13 @@ export default function ReviewerPage() {
                 })()}
 
                 <div className="card p-5">
-                  <SubmissionChat submissionId={selected.id} />
+                  <SubmissionChat
+                    submissionId={selected.id}
+                    taskId={selected.taskId}
+                    taskTitle={selected.taskTitle}
+                    contributorId={selected.contributorId}
+                    reviewerId={selected.reviewerId}
+                  />
                 </div>
               </div>
 

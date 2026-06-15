@@ -412,7 +412,13 @@ export default function TaskPage() {
             )}
 
             <div className="mt-5 pt-5 border-t border-[#E8EBF0]">
-              <SubmissionChat submissionId={existingSub.id} />
+              <SubmissionChat
+                submissionId={existingSub.id}
+                taskId={existingSub.taskId}
+                taskTitle={existingSub.taskTitle}
+                contributorId={existingSub.contributorId}
+                reviewerId={existingSub.reviewerId}
+              />
             </div>
           </div>
         ) : (

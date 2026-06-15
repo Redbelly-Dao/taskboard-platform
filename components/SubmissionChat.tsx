@@ -3,8 +3,17 @@ import { useEffect, useRef, useState } from "react";
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
+import { notifyNewMessage } from "@/lib/notifications";
 
-export default function SubmissionChat({ submissionId }: { submissionId: string }) {
+interface Props {
+  submissionId: string;
+  taskId?: string;
+  taskTitle?: string;
+  contributorId?: string;
+  reviewerId?: string;
+}
+
+export default function SubmissionChat({ submissionId, taskId, taskTitle, contributorId, reviewerId }: Props) {
   const { user, appUser } = useAuth();
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState("");
@@ -28,15 +37,30 @@ export default function SubmissionChat({ submissionId }: { submissionId: string 
   const send = async () => {
     if (!text.trim() || !user || !appUser) return;
     setSending(true);
+    const msgText = text.trim();
     try {
       await addDoc(collection(db, "submissions", submissionId, "messages"), {
         senderId: user.uid,
         senderWallet: appUser.walletAddress,
         senderRole: appUser.role,
-        message: text.trim(),
+        message: msgText,
         createdAt: serverTimestamp(),
       });
       setText("");
+
+      if (taskId && taskTitle) {
+        notifyNewMessage({
+          submissionId,
+          taskId,
+          taskTitle,
+          senderId: user.uid,
+          senderWallet: appUser.walletAddress,
+          senderRole: appUser.role,
+          messagePreview: msgText,
+          contributorId,
+          reviewerId,
+        });
+      }
     } finally {
       setSending(false);
     }

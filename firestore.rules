@@ -59,5 +59,26 @@ service cloud.firestore {
           );
       }
     }
+
+    // Notifications
+    match /notifications/{notifId} {
+      // Read own personal notifications, or admins read broadcast notifications
+      allow read: if request.auth != null && (
+        resource.data.recipientId == request.auth.uid ||
+        (resource.data.forAdmins == true && role() == "admin")
+      );
+      // Any authenticated user can create notifications (fired by SubmissionChat)
+      allow create: if request.auth != null;
+      // Mark personal notification read, or admin adds self to readBy on broadcasts
+      allow update: if request.auth != null && (
+        resource.data.recipientId == request.auth.uid ||
+        (resource.data.forAdmins == true && role() == "admin")
+      );
+    }
+
+    // Admin audit log — admins read/write only
+    match /adminAuditLog/{logId} {
+      allow read, write: if request.auth != null && role() == "admin";
+    }
   }
 }
