@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
@@ -16,7 +16,8 @@
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "uploadthing": "^7.7.4"
+    "uploadthing": "^7.7.4",
+    "viem": "^2.54.1"
   },
   "devDependencies": {
     "@google-cloud/storage": "^7.19.0",

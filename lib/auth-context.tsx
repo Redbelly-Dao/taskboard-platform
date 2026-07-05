@@ -7,9 +7,11 @@ import {
   signOut,
   onAuthStateChanged,
   User,
+  signInWithCustomToken,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./firebase";
+import { TaskCategory } from "./tasks";
 
 export type UserRole = "contributor" | "reviewer" | "admin";
 
@@ -19,6 +21,8 @@ export interface AppUser {
   email: string;
   role: UserRole;
   discordHandle?: string;
+  username?: string; // unique platform username (can differ from DC)
+  reviewerCategories?: TaskCategory[]; // for reviewer specialization e.g. ['developer'], ['design','documentation'], ['research']
   suspended?: boolean;
   approved?: boolean;
   createdAt: Date;
@@ -28,8 +32,10 @@ interface AuthContextType {
   user: User | null;
   appUser: AppUser | null;
   loading: boolean;
-  register: (walletAddress: string, password: string, discordHandle?: string) => Promise<void>;
+  register: (walletAddress: string, password: string, discordHandle?: string, username?: string) => Promise<void>;
   login: (walletAddress: string, password: string) => Promise<void>;
+  walletRegister: (walletAddress: string, signature: string, message: string, discordHandle?: string, username?: string) => Promise<void>;
+  walletLogin: (walletAddress: string, signature: string, message: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -68,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, []);
 
-  const register = async (walletAddress: string, password: string, discordHandle?: string) => {
+  const register = async (walletAddress: string, password: string, discordHandle?: string, username?: string) => {
     const email = walletToEmail(walletAddress);
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const newUser: AppUser = {
@@ -77,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       role: "contributor",
       discordHandle: discordHandle || "",
+      username: username || "",
       createdAt: new Date(),
     };
     try {
@@ -102,8 +109,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAppUser(null);
   };
 
+  const walletRegister = async (walletAddress: string, signature: string, message: string, discordHandle?: string, username?: string) => {
+    const res = await fetch("/api/wallet-auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet: walletAddress, message, signature, isRegister: true }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.customToken) throw new Error(data.error || "Wallet auth failed");
+
+    const cred = await signInWithCustomToken(auth, data.customToken);
+
+    // Server now handles profile (including pending pre-grant and wallet-based migration).
+    const snap = await getDoc(doc(db, "users", cred.user.uid));
+    if (snap.exists()) {
+      setAppUser(snap.data() as AppUser);
+    } else {
+      const fallback: AppUser = {
+        uid: cred.user.uid,
+        walletAddress: walletAddress.toLowerCase(),
+        email: `${walletAddress.toLowerCase()}@redbelly-taskboard.dao`,
+        role: "contributor",
+        createdAt: new Date(),
+      };
+      setAppUser(fallback);
+    }
+  };
+
+  const walletLogin = async (walletAddress: string, signature: string, message: string) => {
+    const res = await fetch("/api/wallet-auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet: walletAddress, message, signature, isRegister: false }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.customToken) throw new Error(data.error || "Wallet auth failed");
+
+    const cred = await signInWithCustomToken(auth, data.customToken);
+
+    // Fetch existing profile (role etc may have been pre-granted or migrated)
+    const snap = await getDoc(doc(db, "users", cred.user.uid));
+    if (snap.exists()) {
+      setAppUser(snap.data() as AppUser);
+    } else {
+      // fallback
+      const fallback: AppUser = {
+        uid: cred.user.uid,
+        walletAddress: walletAddress.toLowerCase(),
+        email: `${walletAddress.toLowerCase()}@redbelly-taskboard.dao`,
+        role: "contributor",
+        createdAt: new Date(),
+      };
+      setAppUser(fallback);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, appUser, loading, register, login, logout }}>
+    <AuthContext.Provider value={{ user, appUser, loading, register, login, walletRegister, walletLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -17,6 +17,7 @@ export interface Task {
   failureCriteria: string[];
   technicalRequirements?: string[];
   infrastructure?: string[];
+  maxSubmissions?: number; // e.g. 5; editable by admin, defaults to 5
 }
 
 export const formatReward = (rbnt?: number, usd?: number): string => {

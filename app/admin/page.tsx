@@ -124,6 +124,7 @@ export default function AdminPage() {
   const [formFailure, setFormFailure] = useState<string[]>([""]);
   const [formTechnicalReqs, setFormTechnicalReqs] = useState<string[]>([""]);
   const [formInfrastructure, setFormInfrastructure] = useState<string[]>([""]);
+  const [formMaxSubs, setFormMaxSubs] = useState("5"); // submission cap, editable
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -321,7 +322,7 @@ export default function AdminPage() {
     setFormTitle(""); setFormCategory("developer"); setFormReward(""); setFormRewardRbnt("");
     setFormPaymentSplit("100% RBNT"); setFormStatus("open"); setFormShortDesc(""); setFormProblem("");
     setFormDeliverables([""]); setFormBenchmarks([""]); setFormFailure([""]);
-    setFormTechnicalReqs([""]); setFormInfrastructure([""]); setFormError("");
+    setFormTechnicalReqs([""]); setFormInfrastructure([""]); setFormMaxSubs("5"); setFormError("");
     setTaskFormOpen(true);
   };
 
@@ -336,6 +337,7 @@ export default function AdminPage() {
     setFormFailure([...task.failureCriteria, ""]);
     setFormTechnicalReqs([...(task.technicalRequirements ?? []), ""]);
     setFormInfrastructure([...(task.infrastructure ?? []), ""]);
+    setFormMaxSubs((task.maxSubmissions ?? 5).toString());
     setFormError("");
     setTaskFormOpen(true);
   };
@@ -371,6 +373,7 @@ export default function AdminPage() {
         failureCriteria: formFailure.filter((f) => f.trim()),
         technicalRequirements: formTechnicalReqs.filter((r) => r.trim()),
         infrastructure: formInfrastructure.filter((r) => r.trim()),
+        maxSubmissions: parseInt(formMaxSubs) || 5,
       };
 
       await setDoc(doc(db, "tasks", formTaskId.trim().toUpperCase()), taskData);
@@ -776,13 +779,46 @@ export default function AdminPage() {
               </p>
               <p className="text-white/50 text-xs">Change roles via the dropdown</p>
             </div>
-            <div className="px-4 py-3 border-b border-[#E8EBF0] bg-white">
+            <div className="px-4 py-3 border-b border-[#E8EBF0] bg-white flex flex-wrap gap-3 items-end">
               <input
                 className="input text-xs w-full max-w-sm"
                 placeholder="Search by wallet address or Discord handle..."
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
               />
+
+              {/* Pre-grant role to unregistered wallet (add user feature) */}
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const w = (e.currentTarget.wallet as any).value.trim().toLowerCase();
+                if (!w.startsWith("0x")) return alert("Valid 0x wallet");
+                const role = (e.currentTarget.role as any).value;
+                const uname = (e.currentTarget.uname as any).value.trim();
+                const dc = (e.currentTarget.dc as any).value.trim();
+                // Pending pre-grant stored in its own collection so it never collides
+                // with the users walletAddress migration query. Applied on next register/login.
+                await setDoc(doc(db, "pendingGrants", w), {
+                  walletAddress: w,
+                  role,
+                  username: uname || undefined,
+                  discordHandle: dc || undefined,
+                  reviewerCategories: role === "reviewer" ? ["developer"] : undefined, // default, admin can edit later
+                  createdAt: serverTimestamp(),
+                });
+                alert("Pre-granted. User will get role on register.");
+                (e.target as any).reset();
+                await doFetchAll();
+              }} className="flex gap-2 items-end text-xs">
+                <input name="wallet" placeholder="0x wallet" className="input text-xs w-40" required />
+                <select name="role" className="input text-xs">
+                  <option value="contributor">contributor</option>
+                  <option value="reviewer">reviewer</option>
+                  <option value="admin">admin</option>
+                </select>
+                <input name="uname" placeholder="username" className="input text-xs w-28" />
+                <input name="dc" placeholder="discord" className="input text-xs w-28" />
+                <button type="submit" className="btn-primary text-xs px-3 py-1">Pre-grant Role</button>
+              </form>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -978,7 +1014,7 @@ export default function AdminPage() {
             <div className="card overflow-hidden">
               <div className="px-4 py-3 flex items-center gap-3" style={{ backgroundColor: "#2C2C2C" }}>
                 <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${activeReviews.length > 0 ? "bg-green-400 animate-pulse" : "bg-[#555555]"}`} />
-                <p className="text-white font-semibold text-sm">Currently Reviewing ({activeReviews.length})</p>
+                <p className="text-white font-semibold text-sm">Currently Reviewing ({activeReviews.length}) <span className="text-white/50 text-xs">(admins can force-release stale locks)</span></p>
               </div>
               {activeReviews.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-[#AAAAAA]">No active reviews right now.</div>
@@ -1016,12 +1052,36 @@ export default function AdminPage() {
                           <td className="px-4 py-3 text-xs text-[#888888]">
                             {sub.createdAt?.toDate?.()?.toLocaleDateString() ?? "-"}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 flex items-center gap-2">
                             <button
                               onClick={() => setAuditSub(sub)}
                               className="text-xs text-[#E63329] font-semibold hover:underline"
                             >
-                              View Submission
+                              View
+                            </button>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await updateDoc(doc(db, "submissions", sub.id), {
+                                    reviewingBy: null,
+                                    reviewingByWallet: null,
+                                  });
+                                  // Optimistically clear in local state so the list updates immediately
+                                  setSubmissions((prev) =>
+                                    prev.map((s) =>
+                                      s.id === sub.id
+                                        ? { ...s, reviewingBy: null, reviewingByWallet: null }
+                                        : s
+                                    )
+                                  );
+                                } catch {
+                                  alert("Failed to release lock");
+                                }
+                              }}
+                              className="text-xs text-red-600 hover:underline"
+                            >
+                              Force release
                             </button>
                           </td>
                         </tr>
@@ -1126,7 +1186,7 @@ export default function AdminPage() {
                             <span className={`badge-${sub.status}`}>{sub.status?.replace(/_/g, " ")}</span>
                             {sub.adminOverride && <span className="badge bg-yellow-50 text-yellow-700">overridden</span>}
                           </div>
-                          <div className="flex items-center gap-4 flex-shrink-0">
+                          <div className="flex items-center gap-3 flex-shrink-0">
                             <div className="text-right">
                               {sub.reviewTotalScore ? (
                                 <p className="text-sm font-bold text-[#E63329]">{sub.reviewTotalScore}/35</p>
@@ -1135,7 +1195,13 @@ export default function AdminPage() {
                               )}
                               <p className="text-[10px] text-[#AAAAAA]">{sub.reviewedAt?.toDate?.()?.toLocaleDateString() ?? "-"}</p>
                             </div>
-                            <span className="text-xs text-[#AAAAAA]">{isExpanded ? "▲" : "▼"}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setOverrideSub(sub); setOverrideDecision(""); setOverrideFeedback(""); }}
+                              className="text-xs px-2 py-0.5 rounded border border-[#E63329] text-[#E63329] hover:bg-[#FEF0EF] font-semibold"
+                            >
+                              Override
+                            </button>
+                            <span className="text-xs text-[#AAAAAA] cursor-pointer">{isExpanded ? "▲" : "▼"}</span>
                           </div>
                         </div>
 
@@ -1396,6 +1462,11 @@ export default function AdminPage() {
                   <select className="input" value={formStatus} onChange={(e) => setFormStatus(e.target.value as Task["status"])}>
                     {TASK_STATUSES.map((s) => <option key={s} value={s}>{getStatusLabel(s)}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="label">Max Submissions Cap (default 5)</label>
+                  <input type="number" min="1" className="input" value={formMaxSubs} onChange={(e) => setFormMaxSubs(e.target.value)} />
+                  <p className="text-[10px] text-[#AAAAAA]">Visible to admins/reviewers only</p>
                 </div>
               </div>
 

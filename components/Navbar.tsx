@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   collection, query, where, onSnapshot,
-  updateDoc, doc, arrayUnion, limit,
+  updateDoc, doc, arrayUnion, limit, addDoc, serverTimestamp,
 } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
@@ -222,12 +222,33 @@ export default function Navbar() {
 
               {appUser && (
                 <div className="bg-[#F4F5F7] border border-[#E8EBF0] rounded-lg px-3 py-1.5">
-                  <p className="text-xs font-mono font-semibold text-[#1A1A2E] leading-tight">
-                    {appUser.walletAddress.slice(0, 6)}…{appUser.walletAddress.slice(-4)}
-                  </p>
+                  <Link href="/profile" className="text-xs font-semibold text-[#1A1A2E] leading-tight hover:text-[#E63329]">
+                    {appUser.username || `${appUser.walletAddress.slice(0, 6)}…${appUser.walletAddress.slice(-4)}`}
+                  </Link>
                   <p className="text-[10px] text-[#E63329] capitalize font-bold leading-tight">{appUser.role}</p>
                 </div>
               )}
+
+              {/* Feedback mechanism - beautiful matching UI */}
+              <button
+                onClick={async () => {
+                  const type = prompt("Type (bug / suggestion / other):", "suggestion");
+                  const msg = prompt("Your feedback:");
+                  if (msg && appUser) {
+                    await addDoc(collection(db, "feedback"), {
+                      from: appUser.walletAddress,
+                      username: appUser.username || null,
+                      type: type || "other",
+                      message: msg,
+                      createdAt: serverTimestamp(),
+                    });
+                    alert("Thanks for the feedback!");
+                  }
+                }}
+                className="btn-ghost text-xs"
+              >
+                Feedback
+              </button>
               <button onClick={handleLogout} className="btn-ghost text-xs">Sign out</button>
             </div>
           )}

@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { buildResetMessage } from "@/lib/auth-utils";
+import { redbelly } from "@/lib/redbelly";
 
 type Step = "wallet" | "sign" | "password" | "done";
 
@@ -9,10 +11,6 @@ interface DetectedWallet {
   name: string;
   icon: string;
   provider: NonNullable<Window["ethereum"]>;
-}
-
-function buildResetMessage(wallet: string, windowTs: number) {
-  return `Redbelly DAO Password Reset\nWallet: ${wallet.toLowerCase()}\nWindow: ${windowTs}`;
 }
 
 function detectWallets(): DetectedWallet[] {
@@ -153,6 +151,32 @@ export default function ForgotPasswordPage() {
     try {
       await walletEntry.provider.request({ method: "eth_requestAccounts" });
 
+      // Switch to Redbelly if needed
+      const chainIdHex = "0x" + redbelly.id.toString(16);
+      try {
+        await walletEntry.provider.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: chainIdHex }],
+        });
+      } catch (switchErr: any) {
+        if (switchErr.code === 4902) {
+          await walletEntry.provider.request({
+            method: "wallet_addEthereumChain",
+            params: [{
+              chainId: chainIdHex,
+              chainName: redbelly.name,
+              nativeCurrency: redbelly.nativeCurrency,
+              rpcUrls: redbelly.rpcUrls.default.http,
+              blockExplorerUrls: [redbelly.blockExplorers.default.url],
+            }],
+          });
+          await walletEntry.provider.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: chainIdHex }],
+          });
+        }
+      }
+
       const windowTs = Math.floor(Date.now() / 1000 / 300);
       const message = buildResetMessage(wallet, windowTs);
 
@@ -241,6 +265,10 @@ export default function ForgotPasswordPage() {
             </div>
             <h1 className="text-2xl font-bold text-[#1A1A2E]">Reset Password</h1>
             <p className="text-[#888888] text-sm mt-1">Verify wallet ownership to reset your password</p>
+            <p className="text-[10px] text-[#888888] mt-1">
+              Network: Redbelly Mainnet (Chain ID 151) — KYC at{" "}
+              <a href="https://access.redbelly.network/" target="_blank" className="underline">access.redbelly.network</a>
+            </p>
           </div>
 
           {/* Step indicator */}

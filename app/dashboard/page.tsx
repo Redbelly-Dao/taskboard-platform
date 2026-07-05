@@ -245,7 +245,14 @@ export default function DashboardPage() {
                   </div>
 
                   <h3 className="font-bold text-[#1A1A2E] text-sm mb-2 leading-tight">{task.title}</h3>
-                  <p className="text-xs text-[#888888] leading-relaxed flex-1 mb-4">{task.shortDescription}</p>
+                  <p className="text-xs text-[#888888] leading-relaxed flex-1 mb-1">{task.shortDescription}</p>
+                  {/* Richer preview matching detailed specs from reference docs */}
+                  {task.deliverables && task.deliverables[0] && (
+                    <p className="text-[10px] text-[#666] line-clamp-1 mb-3">Key: {task.deliverables[0]}</p>
+                  )}
+                  {task.maxSubmissions && (
+                    <div className="text-[10px] text-[#888888] mb-2">Cap: {task.maxSubmissions}</div>
+                  )}
 
                   <div className="flex items-center justify-between pt-3 border-t border-[#E8EBF0]">
                     <div>

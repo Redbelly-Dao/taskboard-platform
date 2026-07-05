@@ -63,6 +63,19 @@ export default function TaskPage() {
       return;
     }
     if (!task) return;
+
+    // Cap enforcement (5 default). Revisions always OK. Count visible only to reviewers/admins.
+    const hasExisting = !!existingSub;
+    if (!hasExisting) {
+      const countQ = query(collection(db, "submissions"), where("taskId", "==", taskId));
+      const countSnap = await getDocs(countQ);
+      const cap = (task as any).maxSubmissions ?? 5;
+      if (countSnap.size >= cap) {
+        setSubmitError("This task is not taking submissions for the time being.");
+        return;
+      }
+    }
+
     setSubmitError("");
     setSubmitting(true);
 
@@ -185,6 +198,19 @@ export default function TaskPage() {
                 {formatReward(task.rewardRbnt, task.reward)} <span className="text-sm font-normal text-[#888888]">{task.paymentSplit}</span>
               </p>
             </div>
+
+            {/* Basic lifecycle UI - Claim/Start for assigned/in_progress */}
+            {appUser?.role === "contributor" && task.status === "open" && !existingSub && (
+              <button onClick={async () => {
+                await updateDoc(doc(db, "tasks", taskId as string), { status: "assigned" });
+                alert("Task claimed (status assigned). Start work!");
+              }} className="btn-primary text-xs">Claim Task</button>
+            )}
+            {appUser?.role === "contributor" && task.status === "assigned" && existingSub && (
+              <button onClick={async () => {
+                await updateDoc(doc(db, "tasks", taskId as string), { status: "in_progress" });
+              }} className="btn-secondary text-xs">Start Work</button>
+            )}
             {task.reviewerComp > 0 && (
               <div>
                 <p className="text-xs text-[#AAAAAA] mb-0.5">Reviewer Comp</p>

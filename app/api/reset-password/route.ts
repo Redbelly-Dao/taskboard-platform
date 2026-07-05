@@ -1,26 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ethers } from "ethers";
 import * as admin from "firebase-admin";
-
-function getAdminApp() {
-  if (admin.apps.length) return admin.apps[0]!;
-  return admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    }),
-  });
-}
-
-const walletToEmail = (wallet: string) =>
-  `${wallet.toLowerCase()}@redbelly-taskboard.dao`;
-
-// Message the client must sign; includes a timestamp rounded to 5-minute windows
-// so the signature is valid for at most ~10 minutes and can't be replayed later.
-export function buildResetMessage(wallet: string, windowTs: number) {
-  return `Redbelly DAO Password Reset\nWallet: ${wallet.toLowerCase()}\nWindow: ${windowTs}`;
-}
+import { getAdminAuth } from "@/lib/firebase-admin";
+import { walletToEmail, buildResetMessage, verifyWalletSignature } from "@/lib/auth-utils";
 
 export async function POST(req: NextRequest) {
   try {
@@ -55,21 +36,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Signature has expired. Please try again." }, { status: 400 });
     }
 
-    // Recover the signer from the signature
-    let recoveredAddress: string;
-    try {
-      recoveredAddress = ethers.verifyMessage(message, signature);
-    } catch {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
-    }
-
-    if (recoveredAddress.toLowerCase() !== expectedWallet) {
+    // Recover the signer from the signature using audited viem
+    const isValid = await verifyWalletSignature(message, signature, expectedWallet);
+    if (!isValid) {
       return NextResponse.json({ error: "Signature does not match wallet address" }, { status: 403 });
     }
 
     // Look up the Firebase Auth user by their wallet-derived email
-    const app = getAdminApp();
-    const auth = admin.auth(app);
+    const auth = getAdminAuth();
     const email = walletToEmail(wallet);
 
     let userRecord: admin.auth.UserRecord;
@@ -82,8 +56,10 @@ export async function POST(req: NextRequest) {
     await auth.updateUser(userRecord.uid, { password: newPassword });
 
     return NextResponse.json({ success: true });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("reset-password error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const isDev = process.env.NODE_ENV === 'development';
+    const msg = (err as Error)?.message || 'Internal server error';
+    return NextResponse.json({ error: isDev ? msg : 'Internal server error' }, { status: 500 });
   }
 }
