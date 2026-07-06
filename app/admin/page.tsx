@@ -7,7 +7,7 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { Task, TaskCategory, getCategoryLabel, getStatusLabel, formatReward } from "@/lib/tasks";
+import { Task, TaskCategory, getCategoryLabel, getStatusLabel, getSubmissionStatusLabel, formatReward } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
 import SubmissionChat from "@/components/SubmissionChat";
 
@@ -654,7 +654,7 @@ export default function AdminPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1">
-                          <span className={`badge-${sub.status}`}>{sub.status?.replace(/_/g, " ")}</span>
+                          <span className={`badge-${sub.status}`}>{getSubmissionStatusLabel(sub.status)}</span>
                           {sub.adminOverride && <span className="badge bg-yellow-50 text-yellow-700">overridden</span>}
                           {sub.paymentProcessed && <span className="badge bg-green-50 text-green-700">paid</span>}
                         </div>
@@ -1212,7 +1212,7 @@ export default function AdminPage() {
                               <p className="font-mono text-xs font-semibold text-[#1A1A2E]">{sub.taskId}</p>
                               <p className="text-xs text-[#888888] truncate max-w-[200px]">{sub.taskTitle}</p>
                             </div>
-                            <span className={`badge-${sub.status}`}>{sub.status?.replace(/_/g, " ")}</span>
+                            <span className={`badge-${sub.status}`}>{getSubmissionStatusLabel(sub.status)}</span>
                             {sub.adminOverride && <span className="badge bg-yellow-50 text-yellow-700">overridden</span>}
                           </div>
                           <div className="flex items-center gap-3 flex-shrink-0">
@@ -1760,7 +1760,7 @@ export default function AdminPage() {
                     </div>
                     <div className="bg-[#F4F5F7] rounded-lg p-3">
                       <p className="text-xs text-[#AAAAAA] mb-1">Decision</p>
-                      <span className={`badge-${auditSub.status}`}>{auditSub.status?.replace(/_/g, " ")}</span>
+                      <span className={`badge-${auditSub.status}`}>{getSubmissionStatusLabel(auditSub.status)}</span>
                     </div>
                     <div className="bg-[#F4F5F7] rounded-lg p-3">
                       <p className="text-xs text-[#AAAAAA] mb-1">Reviewed</p>
@@ -1868,7 +1868,7 @@ export default function AdminPage() {
                 </div>
                 <div className="bg-[#F4F5F7] rounded-lg p-3">
                   <p className="text-xs text-[#AAAAAA] mb-1">Status</p>
-                  <span className={`badge-${overrideSub.status}`}>{overrideSub.status?.replace(/_/g, " ")}</span>
+                  <span className={`badge-${overrideSub.status}`}>{getSubmissionStatusLabel(overrideSub.status)}</span>
                 </div>
               </div>
 
