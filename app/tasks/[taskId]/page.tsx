@@ -64,15 +64,24 @@ export default function TaskPage() {
     }
     if (!task) return;
 
-    // Cap enforcement (5 default). Revisions always OK. Count visible only to reviewers/admins.
+    // Cap enforcement (5 default). Revisions always OK. Best-effort only: a
+    // contributor cannot read other people's submissions under the Firestore
+    // rules, so this count query throws permission-denied for them. If it fails,
+    // do NOT block the submission (the cap is enforced for reviewers/admins who
+    // can read the queue). Previously this threw before the try block and made
+    // the submit button silently do nothing for contributors.
     const hasExisting = !!existingSub;
     if (!hasExisting) {
-      const countQ = query(collection(db, "submissions"), where("taskId", "==", taskId));
-      const countSnap = await getDocs(countQ);
-      const cap = (task as any).maxSubmissions ?? 5;
-      if (countSnap.size >= cap) {
-        setSubmitError("This task is not taking submissions for the time being.");
-        return;
+      try {
+        const countQ = query(collection(db, "submissions"), where("taskId", "==", taskId));
+        const countSnap = await getDocs(countQ);
+        const cap = (task as any).maxSubmissions ?? 5;
+        if (countSnap.size >= cap) {
+          setSubmitError("This task is not taking submissions for the time being.");
+          return;
+        }
+      } catch {
+        // Count not readable by this user; allow the submission through.
       }
     }
 
