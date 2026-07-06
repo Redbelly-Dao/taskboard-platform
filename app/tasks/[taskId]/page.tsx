@@ -439,8 +439,8 @@ export default function TaskPage() {
                       <label className="label">Notes for Reviewer</label>
                       <textarea className="input resize-none" rows={4}
                         placeholder="Any design decisions, known limitations, or context the reviewer should know…"
-                        value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} />
-                      <p className="text-xs text-[#AAAAAA] mt-1">{notes.length}/1000</p>
+                        value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} />
+                      <p className="text-xs text-[#AAAAAA] mt-1">{notes.length}/2000</p>
                     </div>
                     {submitError && (
                       <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -532,8 +532,8 @@ export default function TaskPage() {
                   <label className="label">Notes for Reviewer</label>
                   <textarea className="input resize-none" rows={4}
                     placeholder="Any design decisions, known limitations, or context the reviewer should know…"
-                    value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} />
-                  <p className="text-xs text-[#AAAAAA] mt-1">{notes.length}/1000</p>
+                    value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} />
+                  <p className="text-xs text-[#AAAAAA] mt-1">{notes.length}/2000</p>
                 </div>
 
                 {submitError && (
