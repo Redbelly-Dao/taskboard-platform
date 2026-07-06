@@ -50,3 +50,7 @@ next-env.d.ts
 
 # resources
 resource-documents/
+
+# local-only scripts and evaluation reports (never pushed)
+scripts/
+evaluations/
