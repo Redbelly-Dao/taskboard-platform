@@ -3,76 +3,29 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import type { Connector } from "wagmi";
 import { useAuth } from "@/lib/auth-context";
-import { createWalletClient, custom, type Address } from 'viem';
-import { redbelly } from '@/lib/redbelly';
+import { useWalletConnectors } from "@/lib/use-wallet-connect";
 
 export default function LoginPage() {
   const { walletLogin } = useAuth();
   const router = useRouter();
+  const { connectors, connectAndSign } = useWalletConnectors();
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const handleWalletLogin = async () => {
+  const handleConnect = async (connector: Connector) => {
     setError("");
-    if (typeof window === 'undefined' || !window.ethereum) {
-      setError("No wallet detected. Install MetaMask or similar.");
-      return;
-    }
-
-    setLoading(true);
+    setPendingId(connector.uid);
     try {
-      const client = createWalletClient({
-        chain: redbelly,
-        transport: custom(window.ethereum),
-      });
-
-      // Ensure wallet is on Redbelly Network (chainId 151)
-      const chainIdHex = '0x' + redbelly.id.toString(16);
-      try {
-        await (window.ethereum as any).request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: chainIdHex }],
-        });
-      } catch (switchError: any) {
-        if (switchError.code === 4902) {
-          await (window.ethereum as any).request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: chainIdHex,
-              chainName: redbelly.name,
-              nativeCurrency: redbelly.nativeCurrency,
-              rpcUrls: redbelly.rpcUrls.default.http,
-              blockExplorerUrls: [redbelly.blockExplorers.default.url],
-            }],
-          });
-          await (window.ethereum as any).request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: chainIdHex }],
-          });
-        } else {
-          throw switchError;
-        }
-      }
-
-      const [address] = await client.request({
-        method: 'eth_requestAccounts',
-      }) as Address[];
-
-      const windowTs = Math.floor(Date.now() / 1000 / 300);
-      const message = `Sign in to Redbelly DAO Task Board\nWallet: ${address.toLowerCase()}\nWindow: ${windowTs}`;
-
-      const signature = await client.signMessage({
-        account: address,
-        message,
-      });
-
+      const { address, signature, message } = await connectAndSign(connector);
       await walletLogin(address, signature, message);
       router.replace("/");
-    } catch (err: any) {
-      setError(err.message || "Login failed. Please sign the message with your wallet.");
+    } catch (err: unknown) {
+      const e = err as { shortMessage?: string; message?: string };
+      setError(e?.shortMessage || e?.message || "Login failed. Please sign the message with your wallet.");
     } finally {
-      setLoading(false);
+      setPendingId(null);
     }
   };
 
@@ -98,25 +51,47 @@ export default function LoginPage() {
           </div>
 
           <div className="card p-6">
-            <div className="space-y-5">
-              <button
-                onClick={handleWalletLogin}
-                disabled={loading}
-                className="btn-primary w-full justify-center py-3 text-base"
-              >
-                {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Signing in…
-                  </span>
-                ) : (
-                  "Connect Wallet & Sign In"
-                )}
-              </button>
-
-              <p className="text-center text-xs text-[#888888]">
-                Sign in securely with your wallet.
-              </p>
+            <div className="space-y-4">
+              {connectors.length === 0 ? (
+                <div className="bg-[#F4F5F7] border border-[#E8EBF0] rounded-lg p-4 text-center">
+                  <p className="text-sm text-[#555555] font-medium">No wallet detected</p>
+                  <p className="text-xs text-[#888888] mt-1">
+                    Install a browser wallet such as{" "}
+                    <a href="https://www.okx.com/web3" target="_blank" rel="noopener noreferrer" className="text-[#E63329] hover:underline">OKX</a>,{" "}
+                    <a href="https://metamask.io/" target="_blank" rel="noopener noreferrer" className="text-[#E63329] hover:underline">MetaMask</a>, or Coinbase Wallet, then refresh this page.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-[#888888] text-center mb-1">Choose a wallet to connect and sign in</p>
+                  {connectors.map((connector) => {
+                    const pending = pendingId === connector.uid;
+                    return (
+                      <button
+                        key={connector.uid}
+                        onClick={() => handleConnect(connector)}
+                        disabled={pendingId !== null}
+                        className="btn-primary w-full justify-center py-3 text-base disabled:opacity-60"
+                      >
+                        {pending ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Signing in…
+                          </span>
+                        ) : (
+                          <span className="flex items-center justify-center gap-2">
+                            {connector.icon && (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img src={connector.icon} alt="" className="w-5 h-5 rounded" />
+                            )}
+                            Continue with {connector.name}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="text-center text-xs text-[#666666] leading-tight">
                 KYC is required to access the Redbelly Network.<br />

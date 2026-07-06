@@ -3,79 +3,32 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import type { Connector } from "wagmi";
 import { useAuth } from "@/lib/auth-context";
-import { createWalletClient, custom, type Address } from 'viem';
-import { redbelly } from '@/lib/redbelly';
+import { useWalletConnectors } from "@/lib/use-wallet-connect";
 
 export default function RegisterPage() {
   const { walletRegister } = useAuth();
   const router = useRouter();
+  const { connectors, connectAndSign } = useWalletConnectors();
   const [discord, setDiscord] = useState("");
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const handleWalletRegister = async () => {
+  const handleRegister = async (connector: Connector) => {
     setError("");
-    if (typeof window === 'undefined' || !window.ethereum) {
-      setError("No wallet detected. Install MetaMask or similar.");
-      return;
-    }
-
-    setLoading(true);
+    setPendingId(connector.uid);
     try {
-      const client = createWalletClient({
-        chain: redbelly,
-        transport: custom(window.ethereum),
-      });
-
-      // Ensure wallet is on Redbelly Network (chainId 151)
-      const chainIdHex = '0x' + redbelly.id.toString(16);
-      try {
-        await (window.ethereum as any).request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: chainIdHex }],
-        });
-      } catch (switchError: any) {
-        if (switchError.code === 4902) {
-          await (window.ethereum as any).request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: chainIdHex,
-              chainName: redbelly.name,
-              nativeCurrency: redbelly.nativeCurrency,
-              rpcUrls: redbelly.rpcUrls.default.http,
-              blockExplorerUrls: [redbelly.blockExplorers.default.url],
-            }],
-          });
-          await (window.ethereum as any).request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: chainIdHex }],
-          });
-        } else {
-          throw switchError;
-        }
-      }
-
-      const [address] = await client.request({
-        method: 'eth_requestAccounts',
-      }) as Address[];
-
-      const windowTs = Math.floor(Date.now() / 1000 / 300);
-      const message = `Sign in to Redbelly DAO Task Board\nWallet: ${address.toLowerCase()}\nWindow: ${windowTs}`;
-
-      const signature = await client.signMessage({
-        account: address,
-        message,
-      });
-
+      const { address, signature, message } = await connectAndSign(connector);
       await walletRegister(address, signature, message, discord, username);
       router.replace("/dashboard");
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const e = err as { shortMessage?: string; message?: string };
       console.error("Wallet register error:", err);
-      setError(err.message || "Registration failed. Please sign the message.");
+      setError(e?.shortMessage || e?.message || "Registration failed. Please sign the message.");
     } finally {
-      setLoading(false);
+      setPendingId(null);
     }
   };
 
@@ -103,20 +56,6 @@ export default function RegisterPage() {
           <div className="card p-6">
             <div className="space-y-4">
               <div>
-                <label className="label">Connect Wallet <span className="text-[#E63329]">*</span></label>
-                <button
-                  onClick={handleWalletRegister}
-                  disabled={loading}
-                  className="btn-primary w-full justify-center"
-                >
-                  Connect Wallet & Sign to Register
-                </button>
-                <p className="text-xs text-[#AAAAAA] mt-1">
-                  Use your wallet to register. No password required.
-                </p>
-              </div>
-
-              <div>
                 <label className="label">Discord Handle <span className="text-[#AAAAAA] font-normal normal-case">(optional but recommended)</span></label>
                 <input
                   className="input"
@@ -139,12 +78,6 @@ export default function RegisterPage() {
                 <p className="text-xs text-[#AAAAAA] mt-1">Shown instead of wallet on cards & tables. Must be unique.</p>
               </div>
 
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-red-700 text-xs">{error}</p>
-                </div>
-              )}
-
               <div className="bg-[#FEF0EF] rounded-lg p-3">
                 <p className="text-xs text-[#E63329] font-semibold mb-1">Before you register</p>
                 <p className="text-xs text-[#555555]">
@@ -159,14 +92,57 @@ export default function RegisterPage() {
                 </p>
               </div>
 
-              <button onClick={handleWalletRegister} disabled={loading} className="btn-primary w-full justify-center">
-                {loading ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Creating account…
-                  </>
-                ) : "Connect Wallet & Sign to Register"}
-              </button>
+              <div>
+                <label className="label">Connect Wallet to Register <span className="text-[#E63329]">*</span></label>
+                {connectors.length === 0 ? (
+                  <div className="bg-[#F4F5F7] border border-[#E8EBF0] rounded-lg p-4 text-center">
+                    <p className="text-sm text-[#555555] font-medium">No wallet detected</p>
+                    <p className="text-xs text-[#888888] mt-1">
+                      Install a browser wallet such as{" "}
+                      <a href="https://www.okx.com/web3" target="_blank" rel="noopener noreferrer" className="text-[#E63329] hover:underline">OKX</a>,{" "}
+                      <a href="https://metamask.io/" target="_blank" rel="noopener noreferrer" className="text-[#E63329] hover:underline">MetaMask</a>, or Coinbase Wallet, then refresh this page.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {connectors.map((connector) => {
+                      const pending = pendingId === connector.uid;
+                      return (
+                        <button
+                          key={connector.uid}
+                          onClick={() => handleRegister(connector)}
+                          disabled={pendingId !== null}
+                          className="btn-primary w-full justify-center disabled:opacity-60"
+                        >
+                          {pending ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Creating account…
+                            </span>
+                          ) : (
+                            <span className="flex items-center justify-center gap-2">
+                              {connector.icon && (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img src={connector.icon} alt="" className="w-5 h-5 rounded" />
+                              )}
+                              Register with {connector.name}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="text-xs text-[#AAAAAA] mt-1">
+                  Sign a message with your wallet to create your account. No password required.
+                </p>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-red-700 text-xs">{error}</p>
+                </div>
+              )}
             </div>
 
             <div className="mt-4 pt-4 border-t border-[#E8EBF0] text-center">
