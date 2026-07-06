@@ -96,6 +96,7 @@ export default function TaskPage() {
         contributorId: user.uid,
         walletAddress: appUser.walletAddress,
         discordHandle: appUser.discordHandle || "",
+        username: appUser.username || "",
         githubLink,
         liveLink,
         publishedLink,

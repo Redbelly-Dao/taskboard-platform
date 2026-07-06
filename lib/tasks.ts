@@ -48,6 +48,16 @@ export const getStatusLabel = (status: Task["status"]): string => ({
   paused: "Paused",
 }[status]);
 
+// Shorten a wallet for display: 0x1234...abcd
+export const shortWallet = (a?: string) => (a ? `${a.slice(0, 6)}...${a.slice(-4)}` : "");
+
+// Preferred human label for a person: their profile username, else their Discord
+// handle, else a shortened wallet. Names are stored alongside wallets at write
+// time (submissions, review locks) so reviewers never need to read other users'
+// docs (which Firestore rules forbid).
+export const displayName = (username?: string, discordHandle?: string, wallet?: string): string =>
+  (username && username.trim()) || (discordHandle && discordHandle.trim()) || shortWallet(wallet);
+
 // Submission review lifecycle. Kept in one place so the reviewer queue and the
 // admin Submissions tab use the exact same words for the same state.
 export type SubmissionStatus =

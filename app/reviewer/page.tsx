@@ -5,7 +5,7 @@ import Link from "next/link";
 import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { Task, TaskCategory, getCategoryLabel, getRequirementsLabel, getSubmissionStatusLabel, formatReward } from "@/lib/tasks";
+import { Task, TaskCategory, getCategoryLabel, getRequirementsLabel, getSubmissionStatusLabel, displayName, formatReward } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
 import SubmissionChat from "@/components/SubmissionChat";
 
@@ -167,6 +167,7 @@ export default function ReviewerPage() {
       const patch = {
         reviewingBy: user?.uid,
         reviewingByWallet: appUser?.walletAddress,
+        reviewingByName: appUser?.username || appUser?.discordHandle || null,
         handoffRequested: false,
         handoffToWallet: null,
         handoffNote: null,
@@ -267,8 +268,10 @@ export default function ReviewerPage() {
         revisionDeadline,
         reviewerId: user?.uid,
         reviewerWallet: appUser?.walletAddress,
+        reviewerName: appUser?.username || appUser?.discordHandle || null,
         reviewingBy: null,
         reviewingByWallet: null,
+        reviewingByName: null,
         handoffRequested: false,
         handoffToWallet: null,
         reviewedAt: serverTimestamp(),
@@ -296,6 +299,7 @@ export default function ReviewerPage() {
         adminOverride: true,
         adminOverrideBy: user?.uid,
         adminOverrideWallet: appUser?.walletAddress,
+        adminOverrideName: appUser?.username || appUser?.discordHandle || null,
         adminOverrideFeedback: overrideFeedback,
         reviewingBy: null,
         reviewingByWallet: null,
@@ -313,26 +317,39 @@ export default function ReviewerPage() {
     }
   };
 
-  // Status pill + purpose-built chips, wrapped so nothing ever clips.
-  const StatusChips = ({ sub, showStatus = true }: { sub: any; showStatus?: boolean }) => {
+  // ONE mutually-exclusive state pill per submission (plus an "overridden" flag).
+  // A submission is either decided (approved/rejected/revision), locked by someone
+  // (in review / you), waiting on a hand-off, or free (awaiting review) - never a
+  // contradictory mix like "awaiting review" + "in review" at once.
+  const StatusChips = ({ sub }: { sub: any }) => {
     const lockedByOther = sub.reviewingBy && sub.reviewingBy !== user?.uid;
     const lockedByMe = sub.reviewingBy && sub.reviewingBy === user?.uid;
+
+    let chip;
+    if (sub.status !== "under_review") {
+      chip = <span className={`badge-${sub.status} text-[10px]`}>{getSubmissionStatusLabel(sub.status)}</span>;
+    } else if (lockedByMe) {
+      chip = <span className="badge bg-blue-50 text-blue-700 text-[10px]">You are reviewing</span>;
+    } else if (lockedByOther) {
+      const who = sub.reviewingByName || short(sub.reviewingByWallet);
+      chip = (
+        <span className="badge bg-amber-50 text-amber-700 text-[10px]" title={`Being reviewed by ${who || "another reviewer"}`}>
+          In review{who ? ` · ${who}` : ""}
+        </span>
+      );
+    } else if (sub.handoffRequested) {
+      chip = (
+        <span className="badge bg-amber-50 text-amber-800 text-[10px]" title={sub.handoffNote || "A reviewer asked for someone else to take this"}>
+          Hand-off wanted{sub.handoffToWallet ? ` → ${short(sub.handoffToWallet)}` : ""}
+        </span>
+      );
+    } else {
+      chip = <span className="badge-under_review text-[10px]">Awaiting review</span>;
+    }
+
     return (
       <div className="flex flex-wrap gap-1 justify-end">
-        {showStatus && (
-          <span className={`badge-${sub.status} text-[10px]`}>{getSubmissionStatusLabel(sub.status)}</span>
-        )}
-        {lockedByMe && <span className="badge bg-blue-50 text-blue-700 text-[10px]">you</span>}
-        {lockedByOther && (
-          <span className="badge bg-amber-50 text-amber-700 text-[10px]" title={`Being reviewed by ${short(sub.reviewingByWallet) || "another reviewer"}`}>
-            in review
-          </span>
-        )}
-        {sub.handoffRequested && (
-          <span className="badge bg-amber-50 text-amber-800 text-[10px]" title={sub.handoffNote || "A reviewer asked for someone else to take this"}>
-            hand-off{sub.handoffToWallet ? ` → ${short(sub.handoffToWallet)}` : ""}
-          </span>
-        )}
+        {chip}
         {isAdmin && sub.adminOverride && <span className="badge bg-yellow-50 text-yellow-700 text-[10px]">overridden</span>}
       </div>
     );
@@ -462,7 +479,7 @@ export default function ReviewerPage() {
     <>
       <div className="mb-4 text-xs space-y-1">
         {sub.reviewerWallet && (
-          <div><span className="text-[#AAAAAA]">Reviewed by: </span><span className="font-mono">{short(sub.reviewerWallet)}</span></div>
+          <div><span className="text-[#AAAAAA]">Reviewed by: </span><span className="font-semibold text-[#1A1A2E]">{displayName(sub.reviewerName, undefined, sub.reviewerWallet)}</span></div>
         )}
         <div>
           <span className="text-[#AAAAAA]">Decision: </span>
@@ -532,7 +549,8 @@ export default function ReviewerPage() {
                   <div className="space-y-3 text-xs">
                     <div>
                       <p className="text-[#AAAAAA] mb-0.5">Submitted by</p>
-                      <p className="font-mono text-[#1A1A2E] break-all">{selected.walletAddress}</p>
+                      <p className="text-sm font-semibold text-[#1A1A2E]">{displayName(selected.username, selected.discordHandle, selected.walletAddress)}</p>
+                      <p className="font-mono text-[10px] text-[#AAAAAA] break-all">{selected.walletAddress}</p>
                     </div>
                     {selected.discordHandle && (
                       <div className="flex justify-between">
@@ -543,13 +561,15 @@ export default function ReviewerPage() {
                     {selected.reviewerWallet && (
                       <div>
                         <p className="text-[#AAAAAA] mb-0.5">Reviewed by</p>
-                        <p className="font-mono text-[#1A1A2E] break-all">{selected.reviewerWallet}</p>
+                        <p className="text-sm font-semibold text-[#1A1A2E]">{displayName(selected.reviewerName, undefined, selected.reviewerWallet)}</p>
+                        <p className="font-mono text-[10px] text-[#AAAAAA] break-all">{selected.reviewerWallet}</p>
                       </div>
                     )}
                     {selected.adminOverrideWallet && (
                       <div>
                         <p className="text-[#AAAAAA] mb-0.5">Admin override by</p>
-                        <p className="font-mono text-[#1A1A2E] break-all">{selected.adminOverrideWallet}</p>
+                        <p className="text-sm font-semibold text-[#1A1A2E]">{displayName(selected.adminOverrideName, undefined, selected.adminOverrideWallet)}</p>
+                        <p className="font-mono text-[10px] text-[#AAAAAA] break-all">{selected.adminOverrideWallet}</p>
                       </div>
                     )}
                   </div>
@@ -773,7 +793,7 @@ export default function ReviewerPage() {
 
                     {lockedByOtherSel && !isAdmin ? (
                       <div className="p-4 bg-[#F4F5F7] rounded-lg text-sm text-[#555555]">
-                        Currently being reviewed by <span className="font-mono">{short(selected.reviewingByWallet)}</span>. You can read it, but cannot start until they release it.
+                        Currently being reviewed by <span className="font-semibold">{selected.reviewingByName || short(selected.reviewingByWallet)}</span>. You can read it, but cannot start until they release it.
                       </div>
                     ) : (
                       <button onClick={startReviewFromView} className="btn-primary">
@@ -884,10 +904,9 @@ export default function ReviewerPage() {
                                 <div key={sub.id} className={`snap-start min-w-[300px] max-w-[340px] card p-4 flex-shrink-0 transition-all ${lockedByOther && !isAdmin ? "opacity-70" : "hover:border-[#E63329] hover:shadow-md"}`}>
                                   <div className="flex justify-between gap-2 mb-2">
                                     <div className="min-w-0">
-                                      <span className="font-mono text-xs text-[#AAAAAA]">{short(sub.walletAddress)}</span>
-                                      {sub.discordHandle && <span className="text-[10px] ml-1 text-[#888888] truncate">({sub.discordHandle})</span>}
+                                      <span className="text-xs font-semibold text-[#1A1A2E] truncate">{displayName(sub.username, sub.discordHandle, sub.walletAddress)}</span>
                                     </div>
-                                    <StatusChips sub={sub} showStatus={isAdmin || subIsReviewed} />
+                                    <StatusChips sub={sub} />
                                   </div>
 
                                   <div className="text-xs text-[#555555] mb-3 line-clamp-2">{sub.notes || "No notes"}</div>
@@ -948,7 +967,7 @@ export default function ReviewerPage() {
                           <div className="flex gap-3 overflow-x-auto snap-x">
                             {typedSubs.map((sub: any) => (
                               <div key={sub.id} className="snap-start min-w-[260px] card p-3 text-xs">
-                                <div className="font-mono">{short(sub.walletAddress)}</div>
+                                <div className="font-semibold text-[#1A1A2E] truncate">{displayName(sub.username, sub.discordHandle, sub.walletAddress)}</div>
                                 <div className="mt-1 flex flex-wrap justify-between gap-1">
                                   <span className={`badge-${sub.status} text-[9px]`}>{getSubmissionStatusLabel(sub.status)}</span>
                                   {sub.reviewTotalScore && <span className="font-bold text-[#E63329]">{sub.reviewTotalScore}/35</span>}
