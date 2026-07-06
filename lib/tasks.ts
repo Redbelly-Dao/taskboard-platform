@@ -18,6 +18,7 @@ export interface Task {
   technicalRequirements?: string[];
   infrastructure?: string[];
   maxSubmissions?: number; // e.g. 5; editable by admin, defaults to 5
+  submissionCount?: number; // public running total, so contributors see + are gated by the cap
 }
 
 export const formatReward = (rbnt?: number, usd?: number): string => {

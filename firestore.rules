@@ -34,10 +34,20 @@ service cloud.firestore {
       allow read, update, delete: if request.auth != null && role() == "admin";
     }
 
-    // Tasks collection — publicly readable; write restricted to admins
+    // Tasks collection — publicly readable; write restricted to admins, EXCEPT that
+    // any authenticated user may bump `submissionCount` by exactly 1 (done atomically
+    // when they create a submission) so the public per-task cap is visible + enforceable.
     match /tasks/{taskId} {
       allow read: if true;
-      allow create, update, delete: if request.auth != null && role() == "admin";
+      allow create, delete: if request.auth != null && role() == "admin";
+      allow update: if request.auth != null && (
+        role() == "admin" ||
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["submissionCount"]) &&
+          request.resource.data.submissionCount is int &&
+          request.resource.data.submissionCount == resource.data.get("submissionCount", 0) + 1
+        )
+      );
     }
 
     // Submissions collection

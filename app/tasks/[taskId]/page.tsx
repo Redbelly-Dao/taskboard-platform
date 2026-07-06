@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { collection, addDoc, updateDoc, query, where, getDocs, doc, getDoc, serverTimestamp } from "firebase/firestore";
+import { collection, updateDoc, query, where, getDocs, doc, getDoc, serverTimestamp, runTransaction, increment } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { useUploadThing } from "@/lib/uploadthing";
@@ -64,25 +64,13 @@ export default function TaskPage() {
     }
     if (!task) return;
 
-    // Cap enforcement (5 default). Revisions always OK. Best-effort only: a
-    // contributor cannot read other people's submissions under the Firestore
-    // rules, so this count query throws permission-denied for them. If it fails,
-    // do NOT block the submission (the cap is enforced for reviewers/admins who
-    // can read the queue). Previously this threw before the try block and made
-    // the submit button silently do nothing for contributors.
-    const hasExisting = !!existingSub;
-    if (!hasExisting) {
-      try {
-        const countQ = query(collection(db, "submissions"), where("taskId", "==", taskId));
-        const countSnap = await getDocs(countQ);
-        const cap = (task as any).maxSubmissions ?? 5;
-        if (countSnap.size >= cap) {
-          setSubmitError("This task is not taking submissions for the time being.");
-          return;
-        }
-      } catch {
-        // Count not readable by this user; allow the submission through.
-      }
+    // The cap lives on the (publicly readable) task doc as `submissionCount`, so
+    // contributors can SEE it and we can ENFORCE it. Quick check for good UX
+    // before the (slow) file upload:
+    const cap = task.maxSubmissions ?? 5;
+    if ((task.submissionCount ?? 0) >= cap) {
+      setSubmitError(`This task has reached its submission cap (${cap}/${cap}) and is no longer accepting new submissions.`);
+      return;
     }
 
     setSubmitError("");
@@ -99,7 +87,7 @@ export default function TaskPage() {
         fileName = file.name;
       }
 
-      await addDoc(collection(db, "submissions"), {
+      const submissionData = {
         taskId,
         taskTitle: task.title,
         contributorId: user.uid,
@@ -119,11 +107,29 @@ export default function TaskPage() {
         reviewerId: null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+      };
+
+      // Atomically enforce the cap and bump the public counter. The transaction
+      // re-reads the task inside the write, so two people submitting the last slot
+      // at the same time cannot both get through.
+      await runTransaction(db, async (tx) => {
+        const taskRef = doc(db, "tasks", taskId as string);
+        const snap = await tx.get(taskRef);
+        const count = snap.data()?.submissionCount ?? 0;
+        const capNow = snap.data()?.maxSubmissions ?? 5;
+        if (count >= capNow) throw new Error("CAP_FULL");
+        const subRef = doc(collection(db, "submissions"));
+        tx.set(subRef, submissionData);
+        tx.update(taskRef, { submissionCount: increment(1) });
       });
 
       router.replace("/dashboard");
-    } catch {
-      setSubmitError("Submission failed. Please check your connection and try again.");
+    } catch (err) {
+      if (err instanceof Error && err.message === "CAP_FULL") {
+        setSubmitError(`This task just reached its submission cap (${cap}/${cap}). Your submission was not recorded.`);
+      } else {
+        setSubmitError("Submission failed. Please check your connection and try again.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -184,6 +190,8 @@ export default function TaskPage() {
     </div>
   );
 
+  const isFull = (task.submissionCount ?? 0) >= (task.maxSubmissions ?? 5);
+
   return (
     <div className="min-h-screen bg-[#F4F5F7]">
       <Navbar />
@@ -206,6 +214,13 @@ export default function TaskPage() {
               <p className="text-xs text-[#AAAAAA] mb-0.5">Contributor Reward</p>
               <p className="text-2xl font-bold text-[#E63329]">
                 {formatReward(task.rewardRbnt, task.reward)} <span className="text-sm font-normal text-[#888888]">{task.paymentSplit}</span>
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-[#AAAAAA] mb-0.5">Submissions</p>
+              <p className={`text-lg font-bold ${(task.submissionCount ?? 0) >= (task.maxSubmissions ?? 5) ? "text-[#E63329]" : "text-[#1A1A2E]"}`}>
+                {task.submissionCount ?? 0}<span className="text-sm font-normal text-[#888888]"> / {task.maxSubmissions ?? 5}</span>
               </p>
             </div>
 
@@ -461,12 +476,19 @@ export default function TaskPage() {
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-[#1A1A2E]">Submit Your Deliverable</h2>
-              {!showForm && (
+              {!showForm && !isFull && (
                 <button onClick={() => setShowForm(true)} className="btn-primary">Start Submission</button>
               )}
             </div>
 
-            {showForm && (
+            {isFull && (
+              <div className="bg-[#F4F5F7] border border-[#E8EBF0] rounded-lg p-4 text-center">
+                <p className="text-sm font-semibold text-[#1A1A2E]">Submission cap reached ({task.submissionCount ?? 0}/{task.maxSubmissions ?? 5})</p>
+                <p className="text-xs text-[#888888] mt-1">This task is no longer accepting new submissions.</p>
+              </div>
+            )}
+
+            {showForm && !isFull && (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="bg-[#FEF0EF] rounded-lg p-3 mb-4">
                   <p className="text-xs text-[#E63329] font-semibold mb-1">Before you submit</p>

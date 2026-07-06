@@ -396,7 +396,9 @@ export default function AdminPage() {
         maxSubmissions: parseInt(formMaxSubs) || 5,
       };
 
-      await setDoc(doc(db, "tasks", formTaskId.trim().toUpperCase()), taskData);
+      // merge so editing a task preserves the server-maintained submissionCount
+      // (it is not part of the form) instead of wiping it back to undefined.
+      await setDoc(doc(db, "tasks", formTaskId.trim().toUpperCase()), taskData, { merge: true });
 
       const updated = { id: formTaskId.trim().toUpperCase(), ...taskData } as Task;
       if (taskFormMode === "add") {
