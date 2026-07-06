@@ -289,6 +289,12 @@ export default function AdminPage() {
           ? { ...s, status: newStatus, reviewDecision: overrideDecision === "under_review" ? null : overrideDecision, adminOverride: true }
           : s
       ));
+      // Rejections free a cap slot: recompute the task's active (non-rejected) count.
+      const activeCount = submissions.filter((s) =>
+        s.taskId === overrideSub.taskId &&
+        (s.id === overrideSub.id ? newStatus : s.status) !== "rejected"
+      ).length;
+      await updateDoc(doc(db, "tasks", overrideSub.taskId), { submissionCount: activeCount });
       await logAdminAction("admin_override", {
         submissionId: overrideSub.id,
         taskId: overrideSub.taskId,

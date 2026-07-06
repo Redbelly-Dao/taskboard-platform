@@ -252,6 +252,19 @@ export default function ReviewerPage() {
     }
   };
 
+  // Cap counts only ACTIVE (non-rejected) submissions, so a rejection frees a slot.
+  // Reviewers/admins can read every submission, so we recount authoritatively after
+  // each decision and write it to the public task.submissionCount.
+  const recountTaskActive = async (taskId: string) => {
+    try {
+      const snap = await getDocs(query(collection(db, "submissions"), where("taskId", "==", taskId)));
+      const active = snap.docs.filter((d) => d.data().status !== "rejected").length;
+      await updateDoc(doc(db, "tasks", taskId), { submissionCount: active });
+    } catch {
+      /* non-blocking: the count self-heals on the next decision */
+    }
+  };
+
   const totalScore = scores.reduce((a, b) => a + b, 0);
 
   const submitReview = async () => {
@@ -277,6 +290,7 @@ export default function ReviewerPage() {
         reviewedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      await recountTaskActive(selected.taskId);
       setSubmissions((prev) => prev.filter((s) => s.id !== selected.id));
       setMyReviewsLoaded(false);
       setSelected(null);
@@ -306,6 +320,7 @@ export default function ReviewerPage() {
         adminOverrideAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      await recountTaskActive(selected.taskId);
       setSubmissions((prev) => prev.filter((s) => s.id !== selected.id));
       setSelected(null);
       setViewOnly(false);

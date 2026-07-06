@@ -45,7 +45,13 @@ service cloud.firestore {
         (
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(["submissionCount"]) &&
           request.resource.data.submissionCount is int &&
-          request.resource.data.submissionCount == resource.data.get("submissionCount", 0) + 1
+          request.resource.data.submissionCount >= 0 &&
+          (
+            // reviewers recount active (non-rejected) submissions authoritatively
+            role() == "reviewer" ||
+            // contributors may only bump by 1 (atomic with creating a submission)
+            request.resource.data.submissionCount == resource.data.get("submissionCount", 0) + 1
+          )
         )
       );
     }
