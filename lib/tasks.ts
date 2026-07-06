@@ -34,6 +34,11 @@ export const getCategoryLabel = (cat: TaskCategory): string => ({
   content: "Content & Community",
 }[cat]);
 
+// Developer and developer-documentation tasks list genuine technical requirements;
+// design/research/content roles read more naturally as a "Scope of Work".
+export const getRequirementsLabel = (cat: TaskCategory): string =>
+  cat === "developer" || cat === "documentation" ? "Technical Requirements" : "Scope of Work";
+
 export const getStatusLabel = (status: Task["status"]): string => ({
   open: "Open",
   assigned: "Assigned",

@@ -5,7 +5,7 @@ import { collection, addDoc, updateDoc, query, where, getDocs, doc, getDoc, serv
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { useUploadThing } from "@/lib/uploadthing";
-import { Task, getCategoryLabel, formatReward } from "@/lib/tasks";
+import { Task, getCategoryLabel, formatReward, getRequirementsLabel } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
 import SubmissionChat from "@/components/SubmissionChat";
 import Link from "next/link";
@@ -227,7 +227,7 @@ export default function TaskPage() {
 
         {task.technicalRequirements && task.technicalRequirements.length > 0 && (
           <div className="card p-6 mb-4">
-            <h2 className="font-bold text-xs uppercase tracking-wider text-[#888888] mb-3">Technical Requirements</h2>
+            <h2 className="font-bold text-xs uppercase tracking-wider text-[#888888] mb-3">{getRequirementsLabel(task.category)}</h2>
             <ul className="space-y-2">
               {task.technicalRequirements.map((r, i) => (
                 <li key={i} className="flex gap-2 text-sm text-[#555555]">
