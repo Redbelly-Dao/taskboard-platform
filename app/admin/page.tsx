@@ -11,7 +11,7 @@ import { Task, TaskCategory, getCategoryLabel, getStatusLabel, formatReward } fr
 import Navbar from "@/components/Navbar";
 import SubmissionChat from "@/components/SubmissionChat";
 
-type AdminTab = "submissions" | "tasks" | "users" | "payments" | "audit" | "reviewers";
+type AdminTab = "submissions" | "tasks" | "users" | "payments" | "audit" | "reviewers" | "feedback";
 
 const TASK_STATUSES: Task["status"][] = ["open", "assigned", "in_progress", "under_review", "completed", "paused"];
 const TASK_CATEGORIES: TaskCategory[] = ["developer", "design", "research", "documentation", "content"];
@@ -86,6 +86,10 @@ export default function AdminPage() {
   // Audit log tab
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+
+  // Feedback tab
+  const [feedbackItems, setFeedbackItems] = useState<any[]>([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   // Submission search + filter
   const [submissionSearch, setSubmissionSearch] = useState("");
@@ -179,6 +183,22 @@ export default function AdminPage() {
       })
       .catch(() => setAuditLoading(false));
   };
+
+  const refreshFeedback = () => {
+    setFeedbackLoading(true);
+    getDocs(query(collection(db, "feedback"), orderBy("createdAt", "desc")))
+      .then((snap) => {
+        setFeedbackItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setFeedbackLoading(false);
+      })
+      .catch(() => setFeedbackLoading(false));
+  };
+
+  useEffect(() => {
+    if (tab !== "feedback" || !user || appUser?.role !== "admin") return;
+    refreshFeedback();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, user, appUser]);
 
   const logAdminAction = async (action: string, details: Record<string, any>) => {
     try {
@@ -519,6 +539,7 @@ export default function AdminPage() {
     { value: "payments", label: "Payments" },
     { value: "reviewers", label: "Reviewers" },
     { value: "audit", label: "Audit Log" },
+    { value: "feedback", label: "Feedback" },
   ];
 
   return (
@@ -1407,6 +1428,76 @@ export default function AdminPage() {
                       <tr>
                         <td colSpan={4} className="px-4 py-12 text-center text-sm text-[#AAAAAA]">
                           No audit log entries yet. Actions will appear here as you use the admin panel.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* FEEDBACK TAB */}
+        {tab === "feedback" && (
+          <div className="card overflow-hidden">
+            <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: "#2C2C2C" }}>
+              <p className="text-white font-semibold text-sm">Community Feedback ({feedbackItems.length})</p>
+              <button
+                onClick={refreshFeedback}
+                className="text-xs text-white/70 hover:text-white font-semibold transition-colors flex items-center gap-1.5"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
+            {feedbackLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="w-8 h-8 border-2 border-[#E63329] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[#F4F5F7] text-xs text-[#888888] border-b border-[#E8EBF0]">
+                      <th className="text-left px-4 py-3 font-semibold">Date</th>
+                      <th className="text-left px-4 py-3 font-semibold">Type</th>
+                      <th className="text-left px-4 py-3 font-semibold">Message</th>
+                      <th className="text-left px-4 py-3 font-semibold">From</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {feedbackItems.map((f, i) => (
+                      <tr key={f.id} className={`border-b border-[#F4F5F7] ${i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
+                        <td className="px-4 py-3 text-xs text-[#888888] whitespace-nowrap align-top">
+                          {f.createdAt?.toDate?.()?.toLocaleString() ?? "-"}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <span className={`badge text-xs ${
+                            f.type === "bug" ? "bg-red-50 text-red-600" :
+                            f.type === "suggestion" ? "bg-blue-50 text-blue-700" :
+                            "bg-[#F4F5F7] text-[#555555]"
+                          }`}>
+                            {f.type || "other"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-[#555555] align-top">
+                          <p className="whitespace-pre-wrap max-w-[520px]">{f.message}</p>
+                        </td>
+                        <td className="px-4 py-3 text-xs align-top whitespace-nowrap">
+                          {f.username && <p className="text-[#1A1A2E] font-semibold">{f.username}</p>}
+                          <p className="font-mono text-[#888888]">
+                            {f.from ? `${f.from.slice(0, 6)}...${f.from.slice(-4)}` : "-"}
+                          </p>
+                        </td>
+                      </tr>
+                    ))}
+                    {feedbackItems.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-12 text-center text-sm text-[#AAAAAA]">
+                          No feedback yet. Submissions from the navbar Feedback button will appear here.
                         </td>
                       </tr>
                     )}
