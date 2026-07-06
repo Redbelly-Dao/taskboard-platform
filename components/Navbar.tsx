@@ -198,7 +198,7 @@ export default function Navbar() {
                                   <p className="text-xs font-semibold text-[#1A1A2E] truncate">
                                     {notif.taskId}
                                     {notif.taskTitle && (
-                                      <span className="font-normal text-[#888888]"> — {notif.taskTitle}</span>
+                                      <span className="font-normal text-[#888888]"> · {notif.taskTitle}</span>
                                     )}
                                   </p>
                                   <p className="text-xs text-[#555555] mt-0.5">

@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } catch (err) {
           // Firestore unreachable (e.g. ad-blocker on localhost). Auth still
-          // works — the user is logged in but appUser stays null until reload.
+          // works: the user is logged in but appUser stays null until reload.
           console.warn("Could not load user profile from Firestore:", err);
         }
       } else {

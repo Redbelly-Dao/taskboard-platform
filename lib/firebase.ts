@@ -11,7 +11,7 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Guard against SSR pre-rendering without credentials — Firebase auth
+// Guard against SSR pre-rendering without credentials: Firebase auth
 // validates the API key on initialization and throws at build time otherwise.
 const hasConfig = Boolean(firebaseConfig.apiKey);
 

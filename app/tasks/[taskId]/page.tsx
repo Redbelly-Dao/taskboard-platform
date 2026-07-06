@@ -231,7 +231,7 @@ export default function TaskPage() {
             <ul className="space-y-2">
               {task.technicalRequirements.map((r, i) => (
                 <li key={i} className="flex gap-2 text-sm text-[#555555]">
-                  <span className="text-[#E63329] font-bold shrink-0">—</span>
+                  <span className="text-[#E63329] font-bold shrink-0">•</span>
                   <span className="leading-relaxed">{r}</span>
                 </li>
               ))}
@@ -305,7 +305,7 @@ export default function TaskPage() {
           </div>
         )}
 
-        {/* Submission — contributors only */}
+        {/* Submission (contributors only) */}
         {appUser?.role === "contributor" && (existingSub ? (
           <div className="card p-6 border-l-4 border-l-[#E63329]">
             <h2 className="font-bold text-[#1A1A2E] mb-3">Your Submission</h2>
@@ -399,7 +399,7 @@ export default function TaskPage() {
                         {file ? (
                           <p className="text-sm text-[#1A1A2E] font-semibold">{file.name}</p>
                         ) : existingSub.fileName ? (
-                          <p className="text-sm text-[#555555]">Current: <span className="font-semibold">{existingSub.fileName}</span> — click to replace</p>
+                          <p className="text-sm text-[#555555]">Current: <span className="font-semibold">{existingSub.fileName}</span> (click to replace)</p>
                         ) : (
                           <p className="text-sm text-[#AAAAAA]">Click to upload a file</p>
                         )}

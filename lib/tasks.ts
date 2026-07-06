@@ -47,3 +47,22 @@ export const getStatusLabel = (status: Task["status"]): string => ({
   completed: "Completed",
   paused: "Paused",
 }[status]);
+
+// Submission review lifecycle. Kept in one place so the reviewer queue and the
+// admin Submissions tab use the exact same words for the same state.
+export type SubmissionStatus =
+  | "under_review"
+  | "approved"
+  | "rejected"
+  | "revision_requested";
+
+// A submission awaiting review is shown as "Awaiting review" to reviewers (clearer
+// than "under review"); everything else keeps its plain status wording. The colour
+// still comes from the shared `badge-<status>` classes in globals.css.
+export const getSubmissionStatusLabel = (status?: string): string =>
+  ({
+    under_review: "Awaiting review",
+    approved: "Approved",
+    rejected: "Rejected",
+    revision_requested: "Revision requested",
+  }[status ?? ""] ?? (status ?? "").replace(/_/g, " "));

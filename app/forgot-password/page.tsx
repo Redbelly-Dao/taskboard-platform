@@ -266,7 +266,7 @@ export default function ForgotPasswordPage() {
             <h1 className="text-2xl font-bold text-[#1A1A2E]">Reset Password</h1>
             <p className="text-[#888888] text-sm mt-1">Verify wallet ownership to reset your password</p>
             <p className="text-[10px] text-[#888888] mt-1">
-              Network: Redbelly Mainnet (Chain ID 151) — KYC at{" "}
+              Network: Redbelly Mainnet (Chain ID 151), KYC at{" "}
               <a href="https://access.redbelly.network/" target="_blank" className="underline">access.redbelly.network</a>
             </p>
           </div>
