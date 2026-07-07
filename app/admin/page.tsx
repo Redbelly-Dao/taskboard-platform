@@ -571,14 +571,21 @@ export default function AdminPage() {
   }, {} as Record<string, number>);
 
   const exportPaymentBatch = () => {
+    // RBNT is the actual payout currency (splits are 100% RBNT); USD is the
+    // reference value. Reviewer comp is 20% of the task reward.
+    const esc = (v: any) => {
+      const str = String(v ?? "");
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
     const rows = [
-      ["Task ID", "Task Title", "Contributor Wallet", "Contributor $", "Reviewer Wallet", "Reviewer $", "Split"],
+      ["Task ID", "Task Title", "Contributor Wallet", "Contributor RBNT", "Contributor USD", "Reviewer Wallet", "Reviewer RBNT", "Reviewer USD", "Split"],
       ...payableWinners.map((s) => {
         const task = tasks.find((t) => t.id === s.taskId);
-        return [s.taskId, s.taskTitle, s.walletAddress, task?.reward ?? "", s.reviewerWallet ?? "", task?.reviewerComp ?? "", task?.paymentSplit ?? ""];
+        const reviewerRbnt = task?.rewardRbnt ? Math.round(task.rewardRbnt * 0.2) : "";
+        return [s.taskId, s.taskTitle, s.walletAddress, task?.rewardRbnt ?? "", task?.reward ?? "", s.reviewerWallet ?? "", reviewerRbnt, task?.reviewerComp ?? "", task?.paymentSplit ?? ""];
       }),
     ];
-    const csv = rows.map((r) => r.join(",")).join("\n");
+    const csv = rows.map((r) => r.map(esc).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1094,14 +1101,16 @@ export default function AdminPage() {
                   <div>
                     <p className="text-xs text-[#AAAAAA]">Total Contributor Pay</p>
                     <p className="text-xl font-bold text-[#E63329]">
-                      ${payableWinners.reduce((sum, s) => sum + (tasks.find((t) => t.id === s.taskId)?.reward || 0), 0)}
+                      {payableWinners.reduce((sum, s) => sum + (tasks.find((t) => t.id === s.taskId)?.rewardRbnt || 0), 0).toLocaleString()} RBNT
                     </p>
+                    <p className="text-xs text-[#888888]">~${payableWinners.reduce((sum, s) => sum + (tasks.find((t) => t.id === s.taskId)?.reward || 0), 0).toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-xs text-[#AAAAAA]">Total Reviewer Pay</p>
                     <p className="text-xl font-bold text-[#1A1A2E]">
-                      ${payableWinners.reduce((sum, s) => sum + (tasks.find((t) => t.id === s.taskId)?.reviewerComp || 0), 0)}
+                      {payableWinners.reduce((sum, s) => sum + Math.round((tasks.find((t) => t.id === s.taskId)?.rewardRbnt || 0) * 0.2), 0).toLocaleString()} RBNT
                     </p>
+                    <p className="text-xs text-[#888888]">~${payableWinners.reduce((sum, s) => sum + (tasks.find((t) => t.id === s.taskId)?.reviewerComp || 0), 0).toLocaleString()}</p>
                   </div>
                 </div>
               </div>
