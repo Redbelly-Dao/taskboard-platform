@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { notifyNewMessage } from "@/lib/notifications";
+import { sendSubmissionMessage } from "@/lib/submission-messages";
 
 interface Props {
   submissionId: string;
@@ -39,28 +39,18 @@ export default function SubmissionChat({ submissionId, taskId, taskTitle, contri
     setSending(true);
     const msgText = text.trim();
     try {
-      await addDoc(collection(db, "submissions", submissionId, "messages"), {
+      await sendSubmissionMessage({
+        submissionId,
+        taskId,
+        taskTitle,
         senderId: user.uid,
         senderWallet: appUser.walletAddress,
         senderRole: appUser.role,
         message: msgText,
-        createdAt: serverTimestamp(),
+        contributorId,
+        reviewerId,
       });
       setText("");
-
-      if (taskId && taskTitle) {
-        notifyNewMessage({
-          submissionId,
-          taskId,
-          taskTitle,
-          senderId: user.uid,
-          senderWallet: appUser.walletAddress,
-          senderRole: appUser.role,
-          messagePreview: msgText,
-          contributorId,
-          reviewerId,
-        });
-      }
     } finally {
       setSending(false);
     }

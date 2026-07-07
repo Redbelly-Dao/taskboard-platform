@@ -8,6 +8,7 @@ import { db } from "@/lib/firebase";
 import { Task, TaskCategory, getCategoryLabel, getRequirementsLabel, getSubmissionStatusLabel, displayName, formatReward } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
 import SubmissionChat from "@/components/SubmissionChat";
+import { sendSubmissionMessage } from "@/lib/submission-messages";
 
 const RUBRIC_CRITERIA = [
   "Deliverable completeness: does the submission include everything listed in Required Deliverables?",
@@ -166,7 +167,7 @@ export default function ReviewerPage() {
     let openedSub = sub;
     if (willLock) {
       // Claim the lock and clear any pending hand-off request (we are taking it).
-      const patch = {
+      const patch: Record<string, unknown> = {
         reviewingBy: user?.uid,
         reviewingByWallet: appUser?.walletAddress,
         reviewingByName: appUser?.username || appUser?.discordHandle || null,
@@ -175,6 +176,25 @@ export default function ReviewerPage() {
         handoffNote: null,
         handoffBy: null,
       };
+
+      // Let the contributor know a review has started, once per round. Guarded
+      // by reviewStartedNotified so re-opening the same submission (or another
+      // reviewer picking it up after a hand-off) doesn't spam repeat messages;
+      // it's reset to false on resubmission so the next round can notify again.
+      if (!sub.reviewStartedNotified && user && appUser) {
+        patch.reviewStartedNotified = true;
+        sendSubmissionMessage({
+          submissionId: sub.id,
+          taskId: sub.taskId,
+          taskTitle: sub.taskTitle,
+          senderId: user.uid,
+          senderWallet: appUser.walletAddress,
+          senderRole: appUser.role,
+          message: "Hi! I've started reviewing your submission for this task. I'll share feedback here once it's complete.",
+          contributorId: sub.contributorId,
+        }).catch(() => { /* non-blocking */ });
+      }
+
       updateDoc(doc(db, "submissions", sub.id), patch).catch(console.error);
       openedSub = { ...sub, ...patch };
       setSubmissions((prev) => prev.map((s) => (s.id === sub.id ? openedSub : s)));

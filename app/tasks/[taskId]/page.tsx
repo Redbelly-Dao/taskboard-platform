@@ -9,6 +9,7 @@ import { Task, getCategoryLabel, formatReward, getRequirementsLabel } from "@/li
 import Navbar from "@/components/Navbar";
 import SubmissionChat from "@/components/SubmissionChat";
 import Link from "next/link";
+import { sendSubmissionMessage } from "@/lib/submission-messages";
 
 export default function TaskPage() {
   const { taskId } = useParams<{ taskId: string }>();
@@ -186,6 +187,8 @@ export default function TaskPage() {
         reviewDecision: null,
         requiredChanges: null,
         revisionDeadline: null,
+        // let the "review started" auto-message fire again for this new round
+        reviewStartedNotified: false,
         updatedAt: serverTimestamp(),
       });
       setExistingSub((prev: any) => ({
@@ -199,7 +202,22 @@ export default function TaskPage() {
         reviewDecision: null,
         requiredChanges: null,
         revisionDeadline: null,
+        reviewStartedNotified: false,
       }));
+
+      if (user && appUser && task) {
+        sendSubmissionMessage({
+          submissionId: existingSub.id,
+          taskId: taskId as string,
+          taskTitle: task.title,
+          senderId: user.uid,
+          senderWallet: appUser.walletAddress,
+          senderRole: appUser.role,
+          message: "I've made the requested changes and resubmitted my work for this task. Please take another look when you get a chance.",
+          reviewerId: existingSub.reviewerId,
+        }).catch(() => { /* non-blocking */ });
+      }
+
       setShowResubmit(false);
       setFile(null);
     } catch {
