@@ -7,7 +7,7 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { Task, TaskCategory, TASK_STATUSES, getCategoryLabel, getStatusLabel, getSubmissionStatusLabel, formatReward } from "@/lib/tasks";
+import { Task, TaskCategory, TASK_STATUSES, getCategoryLabel, getStatusLabel, getSubmissionStatusLabel, formatReward, displayName } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
 import SubmissionChat from "@/components/SubmissionChat";
 
@@ -22,6 +22,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   user_suspended: "User Suspended",
   user_unsuspended: "User Unsuspended",
   payment_marked_paid: "Payment Marked Paid",
+  payment_winner_selected: "Payment Winner Selected",
   task_deleted: "Task Deleted",
 };
 
@@ -337,6 +338,15 @@ export default function AdminPage() {
     }
   };
 
+  // Resolve a payment tie: mark one tied submission the winner and clear the
+  // flag on the others for that task, so exactly one is payable.
+  const choosePaymentWinner = async (taskId: string, subId: string) => {
+    const group = submissions.filter((s) => s.taskId === taskId && s.status === "approved" && !s.paymentProcessed);
+    await Promise.all(group.map((s) => updateDoc(doc(db, "submissions", s.id), { paymentWinner: s.id === subId })));
+    setSubmissions((prev) => prev.map((s) => group.some((g) => g.id === s.id) ? { ...s, paymentWinner: s.id === subId } : s));
+    await logAdminAction("payment_winner_selected", { taskId, submissionId: subId });
+  };
+
   const markAsPaid = async (subId: string) => {
     setMarkingPaid(true);
     try {
@@ -453,7 +463,41 @@ export default function AdminPage() {
     await logAdminAction("task_deleted", { taskId: id, taskTitle: task?.title });
   };
 
-  const approvedSubmissions = submissions.filter((s) => s.status === "approved" && !s.paymentProcessed);
+  // Payments are gated two ways: (1) the task must be marked Completed, and
+  // (2) only the single highest-rubric approved submission per task is paid (the
+  // winner). Losing approved submissions on the same task are never paid. A tie
+  // (equal top score) is not auto-resolved: the admin picks the winner, which
+  // sets `paymentWinner` on the chosen submission.
+  const completedTaskIds = new Set(tasks.filter((t) => t.status === "completed").map((t) => t.id));
+  const scoreOf = (s: any) => s.reviewTotalScore ?? -1;
+
+  const approvedUnpaidOnCompleted = submissions.filter(
+    (s) => s.status === "approved" && !s.paymentProcessed && completedTaskIds.has(s.taskId)
+  );
+  const byTask = approvedUnpaidOnCompleted.reduce((acc, s) => {
+    (acc[s.taskId] ||= []).push(s);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  const payableWinners: any[] = [];
+  const tiedTasks: { taskId: string; subs: any[] }[] = [];
+  (Object.entries(byTask) as [string, any[]][]).forEach(([taskId, subs]) => {
+    const maxScore = Math.max(...subs.map(scoreOf));
+    const top = subs.filter((s) => scoreOf(s) === maxScore);
+    if (top.length === 1) {
+      payableWinners.push(top[0]);
+    } else {
+      // Honor an admin-picked winner only if it is still among the tied top set.
+      const chosen = top.find((s) => s.paymentWinner);
+      if (chosen) payableWinners.push(chosen);
+      else tiedTasks.push({ taskId, subs: top });
+    }
+  });
+
+  // Approved + unpaid, but the task is not Completed yet, so held out of the queue.
+  const heldForCompletion = submissions.filter(
+    (s) => s.status === "approved" && !s.paymentProcessed && !completedTaskIds.has(s.taskId)
+  );
   const paidSubmissions = submissions.filter((s) => s.status === "approved" && s.paymentProcessed);
 
   // Reviewer visibility computations
@@ -529,7 +573,7 @@ export default function AdminPage() {
   const exportPaymentBatch = () => {
     const rows = [
       ["Task ID", "Task Title", "Contributor Wallet", "Contributor $", "Reviewer Wallet", "Reviewer $", "Split"],
-      ...approvedSubmissions.map((s) => {
+      ...payableWinners.map((s) => {
         const task = tasks.find((t) => t.id === s.taskId);
         return [s.taskId, s.taskTitle, s.walletAddress, task?.reward ?? "", s.reviewerWallet ?? "", task?.reviewerComp ?? "", task?.paymentSplit ?? ""];
       }),
@@ -560,7 +604,7 @@ export default function AdminPage() {
     { label: "Total Submissions", value: submissions.length },
     { label: "Under Review", value: submissions.filter((s) => s.status === "under_review").length },
     { label: "Approved", value: submissions.filter((s) => s.status === "approved").length },
-    { label: "Pending Payment", value: approvedSubmissions.length },
+    { label: "Pending Payment", value: payableWinners.length },
     { label: "Active Tasks", value: tasks.filter((t) => t.status === "open").length },
     { label: "Total Users", value: users.length },
   ];
@@ -955,15 +999,50 @@ export default function AdminPage() {
             <div className="bg-[#FEF0EF] border border-[#E63329]/20 rounded-xl p-4 mb-6">
               <p className="text-sm font-semibold text-[#E63329] mb-1">Payment Process</p>
               <p className="text-xs text-[#555555]">
-                Compile approved payment details and relay them to the High Council for multi-sig disbursement.
+                Only the highest-scoring approved submission on a <span className="font-semibold">Completed</span> task is payable.
+                Mark a task Completed (Tasks tab or the review page) to release its winner into this queue.
                 RBNT is paid at market price on the day of disbursement. Mark each row as paid after disbursement to close the loop.
               </p>
             </div>
 
+            {heldForCompletion.length > 0 && (
+              <div className="bg-[#FEFCE8] border border-[#EAB308]/30 rounded-lg p-3 mb-4 text-xs text-[#854D0E]">
+                {heldForCompletion.length} approved submission{heldForCompletion.length === 1 ? "" : "s"} held: their task is not marked Completed yet, so no winner is payable. Complete the task to release payment.
+              </div>
+            )}
+
+            {tiedTasks.length > 0 && (
+              <div className="card overflow-hidden mb-4 border border-[#EAB308]/40">
+                <div className="px-4 py-3" style={{ backgroundColor: "#854D0E" }}>
+                  <p className="text-white font-semibold text-sm">Ties to resolve ({tiedTasks.length})</p>
+                </div>
+                <div className="p-4 space-y-4">
+                  {tiedTasks.map(({ taskId, subs }) => (
+                    <div key={taskId}>
+                      <p className="text-xs font-semibold text-[#1A1A2E] mb-2">
+                        <span className="font-mono">{taskId}</span> has {subs.length} approved submissions tied at {scoreOf(subs[0])}/35. Pick the one to pay.
+                      </p>
+                      <div className="space-y-1.5">
+                        {subs.map((sub) => (
+                          <div key={sub.id} className="flex items-center justify-between gap-2 bg-[#F4F5F7] rounded px-3 py-2">
+                            <span className="text-xs text-[#1A1A2E] truncate">
+                              {displayName(sub.username, sub.discordHandle, sub.walletAddress)}
+                              <span className="text-[#888888] font-mono ml-2">{sub.walletAddress?.slice(0, 6)}...{sub.walletAddress?.slice(-4)}</span>
+                            </span>
+                            <button onClick={() => choosePaymentWinner(taskId, sub.id)} className="btn-primary text-xs px-3 py-1 shrink-0">Pay this one</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="card overflow-hidden mb-4">
               <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: "#2C2C2C" }}>
-                <p className="text-white font-semibold text-sm">Pending Payment ({approvedSubmissions.length})</p>
-                {approvedSubmissions.length > 0 && (
+                <p className="text-white font-semibold text-sm">Pending Payment ({payableWinners.length})</p>
+                {payableWinners.length > 0 && (
                   <button onClick={exportPaymentBatch} className="btn-primary text-xs px-3 py-1.5">Export CSV</button>
                 )}
               </div>
@@ -980,7 +1059,7 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {approvedSubmissions.map((sub, i) => {
+                    {payableWinners.map((sub, i) => {
                       const task = tasks.find((t) => t.id === sub.taskId);
                       return (
                         <tr key={sub.id} className={`border-b border-[#F4F5F7] ${i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
@@ -1000,28 +1079,28 @@ export default function AdminPage() {
                         </tr>
                       );
                     })}
-                    {approvedSubmissions.length === 0 && (
-                      <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-[#AAAAAA]">No approved submissions pending payment.</td></tr>
+                    {payableWinners.length === 0 && (
+                      <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-[#AAAAAA]">No winners pending payment. Mark a task Completed to release its top submission.</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {approvedSubmissions.length > 0 && (
+            {payableWinners.length > 0 && (
               <div className="card p-4 mb-6">
                 <p className="text-xs font-semibold text-[#888888] mb-3 uppercase tracking-wide">Batch Summary</p>
                 <div className="flex gap-8">
                   <div>
                     <p className="text-xs text-[#AAAAAA]">Total Contributor Pay</p>
                     <p className="text-xl font-bold text-[#E63329]">
-                      ${approvedSubmissions.reduce((sum, s) => sum + (tasks.find((t) => t.id === s.taskId)?.reward || 0), 0)}
+                      ${payableWinners.reduce((sum, s) => sum + (tasks.find((t) => t.id === s.taskId)?.reward || 0), 0)}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-[#AAAAAA]">Total Reviewer Pay</p>
                     <p className="text-xl font-bold text-[#1A1A2E]">
-                      ${approvedSubmissions.reduce((sum, s) => sum + (tasks.find((t) => t.id === s.taskId)?.reviewerComp || 0), 0)}
+                      ${payableWinners.reduce((sum, s) => sum + (tasks.find((t) => t.id === s.taskId)?.reviewerComp || 0), 0)}
                     </p>
                   </div>
                 </div>
