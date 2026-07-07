@@ -7,11 +7,19 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
-    // Helper: has the calling reviewer ever submitted to this task themselves?
-    // Backs the conflict-of-interest rule: a reviewer with skin in a task can
-    // never read or act on anyone's submissions for that task.
-    function reviewerSubmittedToTask(taskId) {
-      return taskId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("submittedTaskIds", []);
+    // True if the caller may read/act on a submission for this taskId: admins
+    // always can; reviewers can unless they've submitted to this task
+    // themselves (conflict of interest). Exactly ONE users/{uid} lookup via
+    // `let` — this runs once per matched document in the reviewer queue's
+    // list query, and Firestore caps rule evaluation at 10 document accesses
+    // per request, so a second get() here would double that cost per
+    // document and silently break the queue once it holds more than ~5
+    // submissions (which is exactly what happened: role() alone already
+    // spent one get() per doc, adding a second get() here tipped 5 docs over
+    // the 10-access ceiling).
+    function reviewerOrAdminMayAccessSubmission(taskId) {
+      let caller = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return caller.role == "admin" || (caller.role == "reviewer" && !(taskId in caller.get("submittedTaskIds", [])));
     }
 
     // Users collection
@@ -85,12 +93,10 @@ service cloud.firestore {
         && !(get(/databases/$(database)/documents/tasks/$(request.resource.data.taskId)).data.status in ["completed", "paused"]);
       allow read: if request.auth != null && (
         resource.data.contributorId == request.auth.uid ||
-        role() == "admin" ||
-        (role() == "reviewer" && !reviewerSubmittedToTask(resource.data.taskId))
+        reviewerOrAdminMayAccessSubmission(resource.data.taskId)
       );
       allow update: if request.auth != null && (
-        role() == "admin" ||
-        (role() == "reviewer" && !reviewerSubmittedToTask(resource.data.taskId)) ||
+        reviewerOrAdminMayAccessSubmission(resource.data.taskId) ||
         (
           resource.data.contributorId == request.auth.uid &&
           resource.data.status == "revision_requested" &&
@@ -100,19 +106,20 @@ service cloud.firestore {
 
       // Submission chat messages, same conflict-of-interest rule: a reviewer
       // can't read or post in the chat for a task they submitted to either.
+      // messageMayAccess() fetches the parent submission exactly once and
+      // reuses it for both the ownership check and the taskId conflict check
+      // (this rule runs per message in a chat thread's list query, so a
+      // second/third redundant get() here would multiply the same way the
+      // reviewer queue bug did).
+      function messageMayAccess() {
+        let sub = get(/databases/$(database)/documents/submissions/$(submissionId)).data;
+        return sub.contributorId == request.auth.uid || reviewerOrAdminMayAccessSubmission(sub.taskId);
+      }
       match /messages/{messageId} {
-        allow read: if request.auth != null && (
-          get(/databases/$(database)/documents/submissions/$(submissionId)).data.contributorId == request.auth.uid ||
-          role() == "admin" ||
-          (role() == "reviewer" && !reviewerSubmittedToTask(get(/databases/$(database)/documents/submissions/$(submissionId)).data.taskId))
-        );
+        allow read: if request.auth != null && messageMayAccess();
         allow create: if request.auth != null
           && request.resource.data.senderId == request.auth.uid
-          && (
-            get(/databases/$(database)/documents/submissions/$(submissionId)).data.contributorId == request.auth.uid ||
-            role() == "admin" ||
-            (role() == "reviewer" && !reviewerSubmittedToTask(get(/databases/$(database)/documents/submissions/$(submissionId)).data.taskId))
-          );
+          && messageMayAccess();
       }
     }
 
