@@ -7,13 +7,12 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { Task, TaskCategory, getCategoryLabel, getStatusLabel, getSubmissionStatusLabel, formatReward } from "@/lib/tasks";
+import { Task, TaskCategory, TASK_STATUSES, getCategoryLabel, getStatusLabel, getSubmissionStatusLabel, formatReward } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
 import SubmissionChat from "@/components/SubmissionChat";
 
 type AdminTab = "submissions" | "tasks" | "users" | "payments" | "audit" | "reviewers" | "feedback";
 
-const TASK_STATUSES: Task["status"][] = ["open", "assigned", "in_progress", "completed", "paused"];
 const TASK_CATEGORIES: TaskCategory[] = ["developer", "design", "research", "documentation", "content"];
 const SUB_STATUS_OPTIONS = ["all", "under_review", "approved", "rejected", "revision_requested"] as const;
 

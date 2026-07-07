@@ -2,14 +2,33 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { collection, getDocs, query, where, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot, updateDoc, doc } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { Task, TaskCategory, getCategoryLabel, displayName, getSubmissionStatusLabel, formatReward } from "@/lib/tasks";
+import { Task, TaskCategory, TASK_STATUSES, getCategoryLabel, getStatusLabel, displayName, getSubmissionStatusLabel, formatReward } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
 import { StatusChips } from "@/components/reviewer/StatusChips";
 
 type ReviewTab = "active" | "my_reviews";
+
+// Admin-only: current task status as a colored tag plus a dropdown to change it
+// right from the review page, so the admin doesn't have to switch to the Tasks
+// tab. Writes tasks/{id}.status (admins are allowed to by the security rules).
+function AdminTaskStatus({ task, onChange }: { task?: Task; onChange: (s: Task["status"]) => void }) {
+  if (!task) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`badge-${task.status} text-xs`}>{getStatusLabel(task.status)}</span>
+      <select
+        value={task.status}
+        onChange={(e) => onChange(e.target.value as Task["status"])}
+        className="text-xs border border-[#E8EBF0] rounded px-1.5 py-0.5 bg-white text-[#1A1A2E] focus:outline-none focus:border-[#E63329]"
+      >
+        {TASK_STATUSES.map((s) => <option key={s} value={s}>{getStatusLabel(s)}</option>)}
+      </select>
+    </span>
+  );
+}
 
 export default function ReviewerPage() {
   const { user, appUser, loading } = useAuth();
@@ -30,6 +49,16 @@ export default function ReviewerPage() {
   const [hideLocked, setHideLocked] = useState(false);
 
   const isAdmin = appUser?.role === "admin";
+
+  const updateTaskStatus = async (taskId: string, newStatus: Task["status"]) => {
+    await updateDoc(doc(db, "tasks", taskId), { status: newStatus });
+    setTasks((prev) => {
+      const next = new Map(prev);
+      const t = next.get(taskId);
+      if (t) next.set(taskId, { ...t, status: newStatus });
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!loading && (!user || (appUser && appUser.role === "contributor"))) {
@@ -255,6 +284,7 @@ export default function ReviewerPage() {
                           {task && <span className={`badge-${task.category} text-xs`}>{getCategoryLabel(task.category)}</span>}
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isFull ? "bg-red-100 text-red-700" : "bg-[#E8EBF0] text-[#555555]"}`}>{typedSubs.length}/{cap} submissions</span>
                           {awaiting > 0 && <span className="badge bg-blue-50 text-blue-700 text-[10px]">{awaiting} awaiting review</span>}
+                          {isAdmin && <AdminTaskStatus task={task} onChange={(s) => updateTaskStatus(taskId, s)} />}
                         </div>
                         <div className="text-xs text-[#888888] shrink-0">
                           {task ? formatReward(task.rewardRbnt ? Math.round(task.rewardRbnt * 0.2) : undefined, task.reviewerComp) : ""} reviewer comp
@@ -335,9 +365,10 @@ export default function ReviewerPage() {
                   const task = tasks.get(taskId);
                   return (
                     <div key={taskId} className="card p-4">
-                      <div className="mb-2 flex items-center gap-2">
+                      <div className="mb-2 flex items-center gap-2 flex-wrap">
                         <span className="font-mono text-sm font-bold">{taskId}</span>
                         {task && <span className={`badge-${task.category} text-xs`}>{getCategoryLabel(task.category)}</span>}
+                        {isAdmin && <AdminTaskStatus task={task} onChange={(s) => updateTaskStatus(taskId, s)} />}
                       </div>
                       <div className="flex gap-3 overflow-x-auto snap-x">
                         {typedSubs.map((sub: any) => {

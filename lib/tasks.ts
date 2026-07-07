@@ -40,6 +40,10 @@ export const getCategoryLabel = (cat: TaskCategory): string => ({
 export const getRequirementsLabel = (cat: TaskCategory): string =>
   cat === "developer" || cat === "documentation" ? "Technical Requirements" : "Scope of Work";
 
+// The full set of task statuses, in display order. Shared by the admin Tasks
+// tab and the reviewer page's admin status control so they never drift.
+export const TASK_STATUSES: Task["status"][] = ["open", "assigned", "in_progress", "completed", "paused"];
+
 export const getStatusLabel = (status: Task["status"]): string => ({
   open: "Open",
   assigned: "Assigned",
