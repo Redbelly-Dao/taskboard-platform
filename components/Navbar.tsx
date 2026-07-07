@@ -92,9 +92,19 @@ export default function Navbar() {
   const handleNotifClick = (notif: any) => {
     markRead(notif);
     setShowDropdown(false);
-    if (appUser?.role === "admin") router.push("/admin");
-    else if (appUser?.role === "reviewer") router.push("/reviewer");
-    else router.push("/submissions");
+    // Contributors: /tasks/[taskId] is a real route and already shows their
+    // own submission, decision, and revision history, so go straight there.
+    // Reviewers/admins: /reviewer's detail view isn't its own route yet, so we
+    // pass the submission via a query param and let the page open it once its
+    // data has loaded (see the effect in app/reviewer/page.tsx).
+    if (appUser?.role === "admin" || appUser?.role === "reviewer") {
+      if (notif.submissionId) router.push(`/reviewer?submission=${notif.submissionId}`);
+      else router.push("/reviewer");
+    } else if (notif.taskId) {
+      router.push(`/tasks/${notif.taskId}`);
+    } else {
+      router.push("/submissions");
+    }
   };
 
   const handleLogout = async () => {

@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useRef, useMemo, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, onSnapshot, runTransaction } from "firebase/firestore";
+import { collection, getDocs, getDoc, query, where, doc, updateDoc, serverTimestamp, onSnapshot, runTransaction } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { Task, TaskCategory, getCategoryLabel, getRequirementsLabel, getSubmissionStatusLabel, displayName, formatReward } from "@/lib/tasks";
@@ -24,9 +24,26 @@ const short = (addr?: string) => (addr ? `${addr.slice(0, 6)}...${addr.slice(-4)
 
 type ReviewTab = "active" | "my_reviews";
 
+// useSearchParams() (used to deep-link a notification click to a specific
+// submission) requires a Suspense boundary in the App Router.
 export default function ReviewerPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#F4F5F7]">
+        <div className="w-8 h-8 border-2 border-[#E63329] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <ReviewerPageInner />
+    </Suspense>
+  );
+}
+
+function ReviewerPageInner() {
   const { user, appUser, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const notifSubmissionId = searchParams.get("submission");
+  const [notifOpenAttempted, setNotifOpenAttempted] = useState(false);
 
   const [reviewTab, setReviewTab] = useState<ReviewTab>("active");
   const [submissions, setSubmissions] = useState<any[]>([]);
@@ -116,6 +133,52 @@ export default function ReviewerPage() {
       if (unsubSubs) unsubSubs();
     };
   }, [user, appUser]);
+
+  // Deep link from a notification click (Navbar routes here as
+  // /reviewer?submission=ID). Try the already-loaded queue first; if it's not
+  // there (e.g. it's since been decided and dropped out of a non-admin's
+  // under_review-only query, or falls outside this reviewer's categories),
+  // fetch it directly. Respects the same "locked by someone else" rule as the
+  // rest of the page: non-admins can't be dropped into a submission someone
+  // else currently holds.
+  useEffect(() => {
+    if (!notifSubmissionId || notifOpenAttempted || fetchLoading || selected || !user || !appUser) return;
+    setNotifOpenAttempted(true);
+
+    const finish = () => router.replace("/reviewer");
+
+    const found = submissions.find((s) => s.id === notifSubmissionId);
+    if (found) {
+      const lockedByOther = found.reviewingBy && found.reviewingBy !== user.uid;
+      if (lockedByOther && !isAdmin) {
+        alert("This submission is currently being reviewed by another reviewer.");
+      } else {
+        openReview(found, { view: true });
+      }
+      finish();
+      return;
+    }
+
+    // Not in the loaded list, fetch it directly rather than silently doing nothing.
+    getDoc(doc(db, "submissions", notifSubmissionId)).then((snap) => {
+      if (!snap.exists()) {
+        alert("That submission could not be found. It may have been removed.");
+        finish();
+        return;
+      }
+      const sub = { id: snap.id, ...snap.data() } as any;
+      const lockedByOther = sub.reviewingBy && sub.reviewingBy !== user.uid;
+      const outOfCategory =
+        !isAdmin && appUser.reviewerCategories && appUser.reviewerCategories.length > 0 &&
+        !appUser.reviewerCategories.includes(tasks.get(sub.taskId)?.category as TaskCategory);
+      if ((lockedByOther || outOfCategory) && !isAdmin) {
+        alert("This submission is currently being reviewed by another reviewer, or is outside your review category.");
+      } else {
+        openReview(sub, { view: true });
+      }
+      finish();
+    }).catch(finish);
+  }, [notifSubmissionId, notifOpenAttempted, fetchLoading, selected, user, appUser, submissions, tasks, isAdmin, router]);
 
   useEffect(() => {
     if (reviewTab !== "my_reviews" || !user || myReviewsLoaded) return;
@@ -1041,7 +1104,13 @@ export default function ReviewerPage() {
                                   <div className="flex items-center justify-between text-xs pt-2 border-t border-[#E8EBF0] gap-2">
                                     <div>{sub.reviewTotalScore ? <span className="font-bold text-[#E63329]">{sub.reviewTotalScore}/35</span> : <span className="text-[#AAAAAA]">Not scored</span>}</div>
                                     <div className="flex flex-wrap gap-1.5 justify-end">
-                                      <button onClick={() => openReview(sub, { view: true })} className="btn-secondary text-xs px-2.5 py-1">View</button>
+                                      {lockedByOther && !isAdmin ? (
+                                        <span className="text-xs px-2.5 py-1 rounded bg-[#F4F5F7] text-[#AAAAAA] border border-[#E8EBF0] cursor-not-allowed" title="Being reviewed by another reviewer">
+                                          Locked
+                                        </span>
+                                      ) : (
+                                        <button onClick={() => openReview(sub, { view: true })} className="btn-secondary text-xs px-2.5 py-1">View</button>
+                                      )}
                                       {isAdmin && subIsReviewed ? (
                                         <button onClick={() => openReview(sub, { override: true })} className="px-2.5 py-1 rounded text-xs font-semibold border border-[#E63329] text-[#E63329] hover:bg-[#FEF0EF] transition-colors">Override</button>
                                       ) : !subIsReviewed && !(lockedByOther && !isAdmin) ? (
@@ -1092,7 +1161,9 @@ export default function ReviewerPage() {
                             {task && <span className={`badge-${task.category} text-xs`}>{getCategoryLabel(task.category)}</span>}
                           </div>
                           <div className="flex gap-3 overflow-x-auto snap-x">
-                            {typedSubs.map((sub: any) => (
+                            {typedSubs.map((sub: any) => {
+                              const lockedByOther = sub.reviewingBy && sub.reviewingBy !== user?.uid;
+                              return (
                               <div key={sub.id} className="snap-start min-w-[260px] card p-3 text-xs">
                                 <div className="font-semibold text-[#1A1A2E] truncate">{displayName(sub.username, sub.discordHandle, sub.walletAddress)}</div>
                                 <div className="mt-1 flex flex-wrap justify-between gap-1">
@@ -1104,11 +1175,16 @@ export default function ReviewerPage() {
                                     <button onClick={() => openReview(sub, { view: true })} className="btn-primary text-xs flex-1 py-1">View Review</button>
                                     <button onClick={() => openReview(sub, { override: true })} className="px-2 py-1 rounded text-xs font-semibold border border-[#E63329] text-[#E63329] hover:bg-[#FEF0EF] flex-1">Override</button>
                                   </div>
+                                ) : lockedByOther ? (
+                                  <span className="block text-center text-xs px-2 py-1 mt-2 rounded bg-[#F4F5F7] text-[#AAAAAA] border border-[#E8EBF0] cursor-not-allowed" title="Being reviewed by another reviewer">
+                                    Locked
+                                  </span>
                                 ) : (
                                   <button onClick={() => openReview(sub, { view: true })} className="btn-secondary text-xs mt-2 w-full">View Review</button>
                                 )}
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       );
