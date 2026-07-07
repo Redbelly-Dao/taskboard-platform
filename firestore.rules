@@ -7,19 +7,16 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
-    // True if the caller may read/act on a submission for this taskId: admins
-    // always can; reviewers can unless they've submitted to this task
-    // themselves (conflict of interest). Exactly ONE users/{uid} lookup via
-    // `let` — this runs once per matched document in the reviewer queue's
-    // list query, and Firestore caps rule evaluation at 10 document accesses
-    // per request, so a second get() here would double that cost per
-    // document and silently break the queue once it holds more than ~5
-    // submissions (which is exactly what happened: role() alone already
-    // spent one get() per doc, adding a second get() here tipped 5 docs over
-    // the 10-access ceiling).
-    function reviewerOrAdminMayAccessSubmission(taskId) {
-      let caller = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return caller.role == "admin" || (caller.role == "reviewer" && !(taskId in caller.get("submittedTaskIds", [])));
+    // True if the calling reviewer has submitted to this task themselves and so
+    // must not act on its submissions (conflict of interest). Used ONLY on
+    // single-document writes (submission update), never on a list-query read
+    // rule: "rules are not filters", so a get()-based per-document condition in
+    // a list read rule fails the whole query the moment it's false for any one
+    // matched doc, which is exactly how the reviewer queue broke. Reads stay
+    // permissive (role-based) and the conflict is hidden client-side instead.
+    function reviewerConflicted(taskId) {
+      let data = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return "submittedTaskIds" in data && taskId in data.submittedTaskIds;
     }
 
     // Users collection
@@ -91,12 +88,19 @@ service cloud.firestore {
         && request.resource.data.status == "under_review"
         && role() != "admin"
         && !(get(/databases/$(database)/documents/tasks/$(request.resource.data.taskId)).data.status in ["completed", "paused"]);
+      // Reads stay permissive/role-based (the proven form). Conflict of
+      // interest is enforced on writes below and hidden from the reviewer queue
+      // client-side; it must NOT gate this list-query read (see reviewerConflicted).
       allow read: if request.auth != null && (
         resource.data.contributorId == request.auth.uid ||
-        reviewerOrAdminMayAccessSubmission(resource.data.taskId)
+        role() in ["reviewer", "admin"]
       );
+      // Writes are single-document, so a get()-based conflict check is safe
+      // here: a conflicted reviewer cannot score or alter a submission for a
+      // task they submitted to. Admins are never conflicted.
       allow update: if request.auth != null && (
-        reviewerOrAdminMayAccessSubmission(resource.data.taskId) ||
+        role() == "admin" ||
+        (role() == "reviewer" && !reviewerConflicted(resource.data.taskId)) ||
         (
           resource.data.contributorId == request.auth.uid &&
           resource.data.status == "revision_requested" &&
@@ -104,22 +108,20 @@ service cloud.firestore {
         )
       );
 
-      // Submission chat messages, same conflict-of-interest rule: a reviewer
-      // can't read or post in the chat for a task they submitted to either.
-      // messageMayAccess() fetches the parent submission exactly once and
-      // reuses it for both the ownership check and the taskId conflict check
-      // (this rule runs per message in a chat thread's list query, so a
-      // second/third redundant get() here would multiply the same way the
-      // reviewer queue bug did).
-      function messageMayAccess() {
-        let sub = get(/databases/$(database)/documents/submissions/$(submissionId)).data;
-        return sub.contributorId == request.auth.uid || reviewerOrAdminMayAccessSubmission(sub.taskId);
-      }
+      // Submission chat messages, role-based like the original (a conflicted
+      // reviewer is kept out of the chat by the detail page, which blocks them
+      // from opening the submission at all).
       match /messages/{messageId} {
-        allow read: if request.auth != null && messageMayAccess();
+        allow read: if request.auth != null && (
+          get(/databases/$(database)/documents/submissions/$(submissionId)).data.contributorId == request.auth.uid ||
+          role() in ["reviewer", "admin"]
+        );
         allow create: if request.auth != null
           && request.resource.data.senderId == request.auth.uid
-          && messageMayAccess();
+          && (
+            get(/databases/$(database)/documents/submissions/$(submissionId)).data.contributorId == request.auth.uid ||
+            role() in ["reviewer", "admin"]
+          );
       }
     }
 
