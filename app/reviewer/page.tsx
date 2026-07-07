@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, onSnapshot, runTransaction } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { Task, TaskCategory, getCategoryLabel, getRequirementsLabel, getSubmissionStatusLabel, displayName, formatReward } from "@/lib/tasks";
@@ -72,32 +72,49 @@ export default function ReviewerPage() {
     }
   }, [user, appUser, loading, router]);
 
+  // Submissions are live (onSnapshot), not a one-time fetch. A stale queue is
+  // exactly how one reviewer's finished review used to get silently overwritten
+  // by another: reviewer B's screen still showed a submission as open because
+  // it never refreshed after reviewer A claimed or decided it. With a live
+  // listener, a decided submission drops out of everyone else's queue the
+  // moment it's decided (the query is scoped to status == "under_review" for
+  // non-admins), so stale locks/claims are far less likely to happen in the
+  // first place. The submitReview transaction below is the actual guarantee;
+  // this just means reviewers rarely hit it.
   useEffect(() => {
     if (!user || !appUser) return;
-    const load = async () => {
-      const [subSnap, taskSnap] = await Promise.all([
-        appUser.role === "admin"
-          ? getDocs(collection(db, "submissions"))
-          : getDocs(query(collection(db, "submissions"), where("status", "==", "under_review"))),
-        getDocs(collection(db, "tasks")),
-      ]);
-      let allSubs = subSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    setFetchLoading(true);
+    let unsubSubs: (() => void) | null = null;
+    let cancelled = false;
+
+    getDocs(collection(db, "tasks")).then((taskSnap) => {
+      if (cancelled) return;
       const map = new Map<string, Task>();
       taskSnap.docs.forEach((d) => map.set(d.id, { id: d.id, ...d.data() } as Task));
-
-      // Enforce reviewer classes from docs (Technical/Content/Research)
-      if (appUser.role === "reviewer" && appUser.reviewerCategories && appUser.reviewerCategories.length > 0) {
-        allSubs = allSubs.filter((s: any) => {
-          const t = map.get(s.taskId);
-          return t && appUser.reviewerCategories!.includes(t.category);
-        });
-      }
-
-      setSubmissions(allSubs);
       setTasks(map);
-      setFetchLoading(false);
+
+      const subQuery = appUser.role === "admin"
+        ? collection(db, "submissions")
+        : query(collection(db, "submissions"), where("status", "==", "under_review"));
+
+      unsubSubs = onSnapshot(subQuery, (subSnap) => {
+        let allSubs = subSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        // Enforce reviewer classes from docs (Technical/Content/Research)
+        if (appUser.role === "reviewer" && appUser.reviewerCategories && appUser.reviewerCategories.length > 0) {
+          allSubs = allSubs.filter((s: any) => {
+            const t = map.get(s.taskId);
+            return t && appUser.reviewerCategories!.includes(t.category);
+          });
+        }
+        setSubmissions(allSubs);
+        setFetchLoading(false);
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      if (unsubSubs) unsubSubs();
     };
-    load();
   }, [user, appUser]);
 
   useEffect(() => {
@@ -299,35 +316,65 @@ export default function ReviewerPage() {
     if (decision === "revision" && revisionAlreadyUsed) return;
     setSubmitting(true);
     try {
-      await updateDoc(doc(db, "submissions", selected.id), {
-        status: decision === "approved" ? "approved" : decision === "rejected" ? "rejected" : "revision_requested",
-        reviewDecision: decision,
-        reviewScores: scores,
-        reviewJustifications: justifications,
-        reviewTotalScore: totalScore,
-        requiredChanges,
-        revisionDeadline,
-        revisionFollowupNotes: revisionFollowupNotes || null,
-        ...(decision === "revision" ? { revisionCount: (selected.revisionCount || 0) + 1 } : {}),
-        reviewerId: user?.uid,
-        reviewerWallet: appUser?.walletAddress,
-        reviewerName: appUser?.username || appUser?.discordHandle || null,
-        reviewingBy: null,
-        reviewingByWallet: null,
-        reviewingByName: null,
-        handoffRequested: false,
-        handoffToWallet: null,
-        reviewedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      // Once a review is issued, it's locked: only the reviewer who holds the
+      // claim can issue it, and it can only happen while the submission is
+      // still under_review. Reading and writing inside a transaction (instead
+      // of a plain updateDoc off local state) means a second reviewer's stale
+      // screen can no longer overwrite a decision another reviewer already
+      // submitted moments earlier, whoever gets there first wins, and it stays
+      // that way until the contributor resubmits or an admin override acts.
+      await runTransaction(db, async (tx) => {
+        const ref = doc(db, "submissions", selected.id);
+        const snap = await tx.get(ref);
+        if (!snap.exists()) throw new Error("NOT_FOUND");
+        const current = snap.data() as any;
+        if (current.status !== "under_review") throw new Error("ALREADY_DECIDED");
+        if (current.reviewingBy !== user?.uid) throw new Error("LOCK_LOST");
+        if (decision === "revision" && (current.revisionCount || 0) >= 1) throw new Error("REVISION_ALREADY_USED");
+
+        tx.update(ref, {
+          status: decision === "approved" ? "approved" : decision === "rejected" ? "rejected" : "revision_requested",
+          reviewDecision: decision,
+          reviewScores: scores,
+          reviewJustifications: justifications,
+          reviewTotalScore: totalScore,
+          requiredChanges,
+          revisionDeadline,
+          revisionFollowupNotes: revisionFollowupNotes || null,
+          ...(decision === "revision" ? { revisionCount: (current.revisionCount || 0) + 1 } : {}),
+          reviewerId: user?.uid,
+          reviewerWallet: appUser?.walletAddress,
+          reviewerName: appUser?.username || appUser?.discordHandle || null,
+          reviewingBy: null,
+          reviewingByWallet: null,
+          reviewingByName: null,
+          handoffRequested: false,
+          handoffToWallet: null,
+          reviewedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
       });
+
       await recountTaskActive(selected.taskId);
       setSubmissions((prev) => prev.filter((s) => s.id !== selected.id));
       setMyReviewsLoaded(false);
       setSelected(null);
       setViewOnly(false);
       currentLockRef.current = null;
-    } catch {
-      alert("Failed to submit review. Please try again.");
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "";
+      if (code === "ALREADY_DECIDED") {
+        alert("This submission was already decided by another reviewer. It's being removed from your queue.");
+        setSubmissions((prev) => prev.filter((s) => s.id !== selected.id));
+        setSelected(null); setViewOnly(false); currentLockRef.current = null;
+      } else if (code === "LOCK_LOST") {
+        alert("Your claim on this submission is no longer active (it may have been released or handed off). Reopen it to try again.");
+        setSelected(null); setViewOnly(false); currentLockRef.current = null;
+      } else if (code === "REVISION_ALREADY_USED") {
+        alert("This submission already used its one revision opportunity. Please choose Approved or Rejected.");
+      } else {
+        alert("Failed to submit review. Please try again.");
+      }
     } finally {
       setSubmitting(false);
     }
