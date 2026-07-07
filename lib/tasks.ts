@@ -9,7 +9,7 @@ export interface Task {
   rewardRbnt?: number;
   reviewerComp: number;
   paymentSplit: string;
-  status: "open" | "assigned" | "in_progress" | "under_review" | "completed" | "paused";
+  status: "open" | "assigned" | "in_progress" | "completed" | "paused";
   shortDescription: string;
   problem: string;
   deliverables: string[];
@@ -44,10 +44,17 @@ export const getStatusLabel = (status: Task["status"]): string => ({
   open: "Open",
   assigned: "Assigned",
   in_progress: "In Progress",
-  under_review: "Under Review",
   completed: "Completed",
   paused: "Paused",
 }[status]);
+
+// Total submissions a single user may create per cycle, across all tasks
+// combined (not per task, see `maxSubmissions`/`submissionCount` for that).
+// Admins never submit at all, so there is no entry for that role.
+export const SUBMISSION_CYCLE_CAP: Record<"reviewer" | "contributor", number> = {
+  reviewer: 2,
+  contributor: 4,
+};
 
 // Shorten a wallet for display: 0x1234...abcd
 export const shortWallet = (a?: string) => (a ? `${a.slice(0, 6)}...${a.slice(-4)}` : "");

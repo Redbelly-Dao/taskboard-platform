@@ -71,6 +71,12 @@ export default function ReviewerPage() {
             return t && appUser.reviewerCategories!.includes(t.category);
           });
         }
+        // Conflict of interest: a reviewer who has submitted to a task themselves
+        // must never see anyone's submissions for that task. Enforced for real in
+        // firestore.rules; this just keeps the queue consistent with that.
+        if (appUser.role === "reviewer" && appUser.submittedTaskIds && appUser.submittedTaskIds.length > 0) {
+          allSubs = allSubs.filter((s: any) => !appUser.submittedTaskIds!.includes(s.taskId));
+        }
         setSubmissions(allSubs);
         setFetchLoading(false);
       });

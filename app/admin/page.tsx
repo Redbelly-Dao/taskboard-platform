@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  collection, getDocs, doc, updateDoc, setDoc, deleteDoc, addDoc,
+  collection, getDocs, getDoc, doc, updateDoc, setDoc, deleteDoc, addDoc,
   query, orderBy, serverTimestamp,
 } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
@@ -13,7 +13,7 @@ import SubmissionChat from "@/components/SubmissionChat";
 
 type AdminTab = "submissions" | "tasks" | "users" | "payments" | "audit" | "reviewers" | "feedback";
 
-const TASK_STATUSES: Task["status"][] = ["open", "assigned", "in_progress", "under_review", "completed", "paused"];
+const TASK_STATUSES: Task["status"][] = ["open", "assigned", "in_progress", "completed", "paused"];
 const TASK_CATEGORIES: TaskCategory[] = ["developer", "design", "research", "documentation", "content"];
 const SUB_STATUS_OPTIONS = ["all", "under_review", "approved", "rejected", "revision_requested"] as const;
 
@@ -157,6 +157,32 @@ export default function AdminPage() {
     if (!user || appUser?.role !== "admin") return;
     doFetchAll();
   }, [user, appUser]);
+
+  // Submission cycle: a manually-advanced batch counter. New submissions are
+  // stamped with the current value; bumping it resets everyone's per-cycle
+  // cap without touching any existing data.
+  const [cycle, setCycle] = useState<number | null>(null);
+  useEffect(() => {
+    if (!user || appUser?.role !== "admin") return;
+    getDoc(doc(db, "config", "cycle")).then((snap) => {
+      setCycle(snap.exists() ? (snap.data().current ?? 1) : 1);
+    });
+  }, [user, appUser]);
+
+  const bumpCycle = async (delta: number) => {
+    const next = Math.max(1, (cycle ?? 1) + delta);
+    setCycle(next);
+    await setDoc(doc(db, "config", "cycle"), { current: next }, { merge: true });
+  };
+
+  // Display-only order: completed tasks sink to the bottom, otherwise the
+  // existing by-number order is preserved. Deliberately not mutating `tasks`
+  // itself, since openAddTask/saveTask compute the next TASK-NN id from
+  // Math.max(...tasks.map(t => t.number)).
+  const displayTasks = useMemo(
+    () => [...tasks].sort((a, b) => Number(a.status === "completed") - Number(b.status === "completed")),
+    [tasks]
+  );
 
   const refreshData = async () => {
     setDataLoading(true);
@@ -727,7 +753,15 @@ export default function AdminPage() {
             <div className="card overflow-hidden">
               <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: "#2C2C2C" }}>
                 <p className="text-white font-semibold text-sm">All Tasks ({tasks.length})</p>
-                <button onClick={openAddTask} className="btn-primary text-xs px-3 py-1.5">+ Add Task</button>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 text-white text-xs">
+                    <span className="text-[#AAAAAA]" title="Submission cycle: bump this to reset everyone's per-cycle submission cap for fresh task batches.">Cycle</span>
+                    <button onClick={() => bumpCycle(-1)} disabled={cycle == null || cycle <= 1} className="w-6 h-6 rounded bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed">−</button>
+                    <span className="font-bold w-5 text-center">{cycle ?? "…"}</span>
+                    <button onClick={() => bumpCycle(1)} disabled={cycle == null} className="w-6 h-6 rounded bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed">+</button>
+                  </div>
+                  <button onClick={openAddTask} className="btn-primary text-xs px-3 py-1.5">+ Add Task</button>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -743,8 +777,8 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {tasks.map((task, i) => (
-                      <tr key={task.id} className={`border-b border-[#F4F5F7] ${i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
+                    {displayTasks.map((task, i) => (
+                      <tr key={task.id} className={`border-b border-[#F4F5F7] ${i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"} ${task.status === "completed" ? "opacity-60" : ""}`}>
                         <td className="px-4 py-3 font-mono text-xs font-semibold text-[#1A1A2E]">{task.id}</td>
                         <td className="px-4 py-3">
                           <p className="text-xs font-semibold text-[#1A1A2E] max-w-[200px] truncate">{task.title}</p>

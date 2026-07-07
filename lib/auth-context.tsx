@@ -26,6 +26,8 @@ export interface AppUser {
   suspended?: boolean;
   approved?: boolean;
   createdAt: Date;
+  submittedTaskIds?: string[]; // every taskId this user has ever submitted to; backs the reviewer conflict-of-interest rule
+  cycleCounts?: Record<string, number>; // submissions made per cycle, e.g. { "3": 2 }; backs the per-cycle submission cap
 }
 
 interface AuthContextType {

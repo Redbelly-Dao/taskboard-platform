@@ -135,7 +135,11 @@ function ReviewerSubmissionPageInner() {
   const outOfCategory =
     isActive && !isAdmin && !!appUser?.reviewerCategories && appUser.reviewerCategories.length > 0 &&
     !!task && !appUser.reviewerCategories.includes(task.category as TaskCategory);
-  const blockedForNonAdmin = !isAdmin && (lockedByOther || outOfCategory);
+  // Conflict of interest: a reviewer who has submitted to this task themselves
+  // can't review anyone's submission for it. Real enforcement is in
+  // firestore.rules; this just surfaces the same block in the UI.
+  const ownTask = !isAdmin && !!sub?.taskId && !!(appUser?.submittedTaskIds ?? []).includes(sub.taskId);
+  const blockedForNonAdmin = !isAdmin && (lockedByOther || outOfCategory || ownTask);
 
   // Claim the review lock. Fires the "review started" auto-message once per round.
   const startReview = async () => {
@@ -642,6 +646,8 @@ function ReviewerSubmissionPageInner() {
                   <div className="p-4 bg-[#F4F5F7] rounded-lg text-sm text-[#555555]">
                     {lockedByOther
                       ? <>Currently being reviewed by <span className="font-semibold">{sub.reviewingByName || shortWallet(sub.reviewingByWallet)}</span>. You can read it, but cannot start until they release it.</>
+                      : ownTask
+                      ? "You submitted to this task yourself, so you can't review it."
                       : "This submission is outside your review category."}
                   </div>
                 ) : isActive ? (

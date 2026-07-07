@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { collection, updateDoc, query, where, getDocs, doc, getDoc, serverTimestamp, runTransaction, increment } from "firebase/firestore";
+import { collection, updateDoc, query, where, getDocs, doc, getDoc, serverTimestamp, runTransaction, increment, arrayUnion } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { useUploadThing } from "@/lib/uploadthing";
-import { Task, getCategoryLabel, formatReward, getRequirementsLabel } from "@/lib/tasks";
+import { Task, getCategoryLabel, formatReward, getRequirementsLabel, SUBMISSION_CYCLE_CAP } from "@/lib/tasks";
 import Navbar from "@/components/Navbar";
 import SubmissionChat from "@/components/SubmissionChat";
 import Link from "next/link";
@@ -57,6 +57,15 @@ export default function TaskPage() {
     });
   }, [user, taskId]);
 
+  // Submission cycle: a manually-advanced batch counter (admin Tasks tab).
+  // Each new submission is stamped with whatever this is at creation time.
+  const [cycle, setCycle] = useState<number | null>(null);
+  useEffect(() => {
+    getDoc(doc(db, "config", "cycle")).then((snap) => {
+      setCycle(snap.exists() ? (snap.data().current ?? 1) : 1);
+    });
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !appUser) {
@@ -65,12 +74,29 @@ export default function TaskPage() {
     }
     if (!task) return;
 
+    if (task.status === "completed" || task.status === "paused") {
+      setSubmitError(task.status === "completed"
+        ? "This task is completed and no longer accepting submissions."
+        : "This task is paused and not accepting submissions right now.");
+      return;
+    }
+
     // The cap lives on the (publicly readable) task doc as `submissionCount`, so
     // contributors can SEE it and we can ENFORCE it. Quick check for good UX
     // before the (slow) file upload:
     const cap = task.maxSubmissions ?? 5;
     if ((task.submissionCount ?? 0) >= cap) {
       setSubmitError(`This task has reached its submission cap (${cap}/${cap}) and is no longer accepting new submissions.`);
+      return;
+    }
+
+    // Per-cycle personal cap: total submissions this user may make across all
+    // tasks in the current cycle (2 for reviewers, 4 for contributors).
+    const role = appUser.role as "contributor" | "reviewer";
+    const cycleCap = SUBMISSION_CYCLE_CAP[role];
+    const usedThisCycle = cycle != null ? (appUser.cycleCounts?.[String(cycle)] ?? 0) : 0;
+    if (cycle != null && usedThisCycle >= cycleCap) {
+      setSubmitError(`You've used all ${cycleCap} of your submissions for this cycle. Check back next cycle.`);
       return;
     }
 
@@ -110,24 +136,44 @@ export default function TaskPage() {
         updatedAt: serverTimestamp(),
       };
 
-      // Atomically enforce the cap and bump the public counter. The transaction
-      // re-reads the task inside the write, so two people submitting the last slot
-      // at the same time cannot both get through.
+      // Atomically enforce every cap and bump the counters. The transaction
+      // re-reads the task, config, and user docs inside the write, so two
+      // people submitting the last slot (or a user's last cycle slot) at the
+      // same time cannot both get through.
       await runTransaction(db, async (tx) => {
         const taskRef = doc(db, "tasks", taskId as string);
-        const snap = await tx.get(taskRef);
-        const count = snap.data()?.submissionCount ?? 0;
-        const capNow = snap.data()?.maxSubmissions ?? 5;
+        const userRef = doc(db, "users", user.uid);
+        const cycleRef = doc(db, "config", "cycle");
+        const [taskSnap, userSnap, cycleSnap] = await Promise.all([tx.get(taskRef), tx.get(userRef), tx.get(cycleRef)]);
+
+        if (["completed", "paused"].includes(taskSnap.data()?.status)) throw new Error("TASK_UNAVAILABLE");
+
+        const count = taskSnap.data()?.submissionCount ?? 0;
+        const capNow = taskSnap.data()?.maxSubmissions ?? 5;
         if (count >= capNow) throw new Error("CAP_FULL");
+
+        const currentCycle = cycleSnap.exists() ? (cycleSnap.data().current ?? 1) : 1;
+        const cycleCapNow = SUBMISSION_CYCLE_CAP[appUser.role as "contributor" | "reviewer"];
+        const usedNow = userSnap.data()?.cycleCounts?.[String(currentCycle)] ?? 0;
+        if (usedNow >= cycleCapNow) throw new Error("CYCLE_CAP_FULL");
+
         const subRef = doc(collection(db, "submissions"));
-        tx.set(subRef, submissionData);
+        tx.set(subRef, { ...submissionData, cycle: currentCycle });
         tx.update(taskRef, { submissionCount: increment(1) });
+        tx.update(userRef, {
+          submittedTaskIds: arrayUnion(taskId),
+          [`cycleCounts.${currentCycle}`]: increment(1),
+        });
       });
 
       router.replace("/dashboard");
     } catch (err) {
       if (err instanceof Error && err.message === "CAP_FULL") {
         setSubmitError(`This task just reached its submission cap (${cap}/${cap}). Your submission was not recorded.`);
+      } else if (err instanceof Error && err.message === "TASK_UNAVAILABLE") {
+        setSubmitError("This task stopped accepting submissions just now. Your submission was not recorded.");
+      } else if (err instanceof Error && err.message === "CYCLE_CAP_FULL") {
+        setSubmitError("You just used your last submission for this cycle. Your submission was not recorded.");
       } else {
         setSubmitError("Submission failed. Please check your connection and try again.");
       }
@@ -249,6 +295,11 @@ export default function TaskPage() {
   );
 
   const isFull = (task.submissionCount ?? 0) >= (task.maxSubmissions ?? 5);
+  const taskUnavailable = task.status === "completed" || task.status === "paused";
+  const cycleCap = appUser?.role === "reviewer" || appUser?.role === "contributor" ? SUBMISSION_CYCLE_CAP[appUser.role] : null;
+  const usedThisCycle = cycle != null ? (appUser?.cycleCounts?.[String(cycle)] ?? 0) : 0;
+  const cycleCapped = cycleCap != null && cycle != null && usedThisCycle >= cycleCap;
+  const blocked = isFull || taskUnavailable || cycleCapped;
 
   return (
     <div className="min-h-screen bg-[#F4F5F7]">
@@ -282,16 +333,20 @@ export default function TaskPage() {
               </p>
             </div>
 
-            {/* Basic lifecycle UI - Claim/Start for assigned/in_progress */}
+            {/* Basic lifecycle UI - Claim/Start for assigned/in_progress. Purely
+                informational (doesn't gate who else can submit); the task list
+                isn't live-subscribed here, so reflect the write locally too. */}
             {appUser?.role === "contributor" && task.status === "open" && !existingSub && (
               <button onClick={async () => {
                 await updateDoc(doc(db, "tasks", taskId as string), { status: "assigned" });
+                setTask((t) => (t ? { ...t, status: "assigned" } : t));
                 alert("Task claimed (status assigned). Start work!");
               }} className="btn-primary text-xs">Claim Task</button>
             )}
             {appUser?.role === "contributor" && task.status === "assigned" && existingSub && (
               <button onClick={async () => {
                 await updateDoc(doc(db, "tasks", taskId as string), { status: "in_progress" });
+                setTask((t) => (t ? { ...t, status: "in_progress" } : t));
               }} className="btn-secondary text-xs">Start Work</button>
             )}
             {task.reviewerComp > 0 && (
@@ -388,8 +443,11 @@ export default function TaskPage() {
           </div>
         )}
 
-        {/* Submission (contributors only) */}
-        {appUser?.role === "contributor" && (existingSub ? (
+        {/* Submission (contributors and reviewers; admins never submit) */}
+        {appUser?.role === "admin" && (
+          <div className="card p-6 text-center text-sm text-[#888888]">Admins do not submit to tasks.</div>
+        )}
+        {(appUser?.role === "contributor" || appUser?.role === "reviewer") && (existingSub ? (
           <div className="card p-6 border-l-4 border-l-[#E63329]">
             <h2 className="font-bold text-[#1A1A2E] mb-3">Your Submission</h2>
             <div className="flex items-center gap-2 mb-4">
@@ -550,7 +608,7 @@ export default function TaskPage() {
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-[#1A1A2E]">Submit Your Deliverable</h2>
-              {!showForm && !isFull && (
+              {!showForm && !blocked && (
                 <button onClick={() => setShowForm(true)} className="btn-primary">Start Submission</button>
               )}
             </div>
@@ -562,7 +620,25 @@ export default function TaskPage() {
               </div>
             )}
 
-            {showForm && !isFull && (
+            {!isFull && taskUnavailable && (
+              <div className="bg-[#F4F5F7] border border-[#E8EBF0] rounded-lg p-4 text-center">
+                <p className="text-sm font-semibold text-[#1A1A2E]">
+                  {task.status === "completed" ? "This task is completed" : "This task is paused"}
+                </p>
+                <p className="text-xs text-[#888888] mt-1">
+                  {task.status === "completed" ? "It's no longer accepting new submissions." : "It's not accepting submissions right now, check back later."}
+                </p>
+              </div>
+            )}
+
+            {!isFull && !taskUnavailable && cycleCapped && (
+              <div className="bg-[#F4F5F7] border border-[#E8EBF0] rounded-lg p-4 text-center">
+                <p className="text-sm font-semibold text-[#1A1A2E]">You've used {usedThisCycle}/{cycleCap} submissions this cycle</p>
+                <p className="text-xs text-[#888888] mt-1">Check back next cycle for more.</p>
+              </div>
+            )}
+
+            {showForm && !blocked && (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="bg-[#FEF0EF] rounded-lg p-3 mb-4">
                   <p className="text-xs text-[#E63329] font-semibold mb-1">Before you submit</p>

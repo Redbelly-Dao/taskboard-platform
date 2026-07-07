@@ -91,6 +91,7 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [mySubmissions, setMySubmissions] = useState<any[]>([]);
   const [filter, setFilter] = useState<FilterCategory>("all");
+  const [showCompleted, setShowCompleted] = useState(false);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [subLoading, setSubLoading] = useState(true);
 
@@ -125,7 +126,10 @@ export default function DashboardPage() {
     </div>
   );
 
-  const filteredTasks = filter === "all" ? tasks : tasks.filter((t) => t.category === filter);
+  const completedCount = tasks.filter((t) => t.status === "completed").length;
+  const filteredTasks = (filter === "all" ? tasks : tasks.filter((t) => t.category === filter))
+    .filter((t) => showCompleted || t.status !== "completed")
+    .sort((a, b) => Number(a.status === "completed") - Number(b.status === "completed"));
   const getMySubmission = (taskId: string) => mySubmissions.find((s) => s.taskId === taskId);
 
   const openCount = tasks.filter((t) => t.status === "open").length;
@@ -213,6 +217,12 @@ export default function DashboardPage() {
               {cat.label}
             </button>
           ))}
+          {completedCount > 0 && (
+            <label className="flex items-center gap-1.5 text-xs text-[#555555] cursor-pointer select-none ml-1">
+              <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
+              Show completed ({completedCount})
+            </label>
+          )}
         </div>
 
         {/* Task grid */}

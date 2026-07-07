@@ -7,6 +7,13 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
+    // Helper: has the calling reviewer ever submitted to this task themselves?
+    // Backs the conflict-of-interest rule: a reviewer with skin in a task can
+    // never read or act on anyone's submissions for that task.
+    function reviewerSubmittedToTask(taskId) {
+      return taskId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("submittedTaskIds", []);
+    }
+
     // Users collection
     match /users/{userId} {
       allow read: if request.auth != null && (
@@ -52,21 +59,38 @@ service cloud.firestore {
             // contributors may only bump by 1 (atomic with creating a submission)
             request.resource.data.submissionCount == resource.data.get("submissionCount", 0) + 1
           )
+        ) ||
+        (
+          // Claim Task / Start Work: a contributor may flip status through these
+          // two exact steps only, nothing else on the doc, no other transition.
+          role() == "contributor" &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"]) &&
+          (
+            (resource.data.status == "open" && request.resource.data.status == "assigned") ||
+            (resource.data.status == "assigned" && request.resource.data.status == "in_progress")
+          )
         )
       );
     }
 
     // Submissions collection
     match /submissions/{submissionId} {
+      // Contributors and reviewers may submit; admins never do (they have no
+      // contributor rights). A task that is completed or paused accepts no
+      // new submissions, enforced here, not just hidden in the UI.
       allow create: if request.auth != null
         && request.resource.data.contributorId == request.auth.uid
-        && request.resource.data.status == "under_review";
+        && request.resource.data.status == "under_review"
+        && role() != "admin"
+        && !(get(/databases/$(database)/documents/tasks/$(request.resource.data.taskId)).data.status in ["completed", "paused"]);
       allow read: if request.auth != null && (
         resource.data.contributorId == request.auth.uid ||
-        role() in ["reviewer", "admin"]
+        role() == "admin" ||
+        (role() == "reviewer" && !reviewerSubmittedToTask(resource.data.taskId))
       );
       allow update: if request.auth != null && (
-        role() in ["reviewer", "admin"] ||
+        role() == "admin" ||
+        (role() == "reviewer" && !reviewerSubmittedToTask(resource.data.taskId)) ||
         (
           resource.data.contributorId == request.auth.uid &&
           resource.data.status == "revision_requested" &&
@@ -74,17 +98,20 @@ service cloud.firestore {
         )
       );
 
-      // Submission chat messages
+      // Submission chat messages, same conflict-of-interest rule: a reviewer
+      // can't read or post in the chat for a task they submitted to either.
       match /messages/{messageId} {
         allow read: if request.auth != null && (
           get(/databases/$(database)/documents/submissions/$(submissionId)).data.contributorId == request.auth.uid ||
-          role() in ["reviewer", "admin"]
+          role() == "admin" ||
+          (role() == "reviewer" && !reviewerSubmittedToTask(get(/databases/$(database)/documents/submissions/$(submissionId)).data.taskId))
         );
         allow create: if request.auth != null
           && request.resource.data.senderId == request.auth.uid
           && (
             get(/databases/$(database)/documents/submissions/$(submissionId)).data.contributorId == request.auth.uid ||
-            role() in ["reviewer", "admin"]
+            role() == "admin" ||
+            (role() == "reviewer" && !reviewerSubmittedToTask(get(/databases/$(database)/documents/submissions/$(submissionId)).data.taskId))
           );
       }
     }
@@ -108,6 +135,14 @@ service cloud.firestore {
     // Admin audit log — admins read/write only
     match /adminAuditLog/{logId} {
       allow read, write: if request.auth != null && role() == "admin";
+    }
+
+    // Global config singletons (e.g. the submission cycle counter). Readable
+    // by any authenticated user so the submit page can show the current
+    // cycle; only admins advance/rewind it.
+    match /config/{configId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && role() == "admin";
     }
   }
 }
