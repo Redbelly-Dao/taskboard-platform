@@ -136,7 +136,10 @@ export default function Navbar() {
                 </>
               )}
               {appUser.role === "reviewer" && (
-                <Link href="/reviewer" className="btn-ghost text-sm hidden sm:block">Reviews</Link>
+                <>
+                  <Link href="/reviewer" className="btn-ghost text-sm hidden sm:block">Reviews</Link>
+                  <Link href="/submissions" className="btn-ghost text-sm hidden sm:block">My Submissions</Link>
+                </>
               )}
               {appUser.role === "contributor" && (
                 <Link href="/submissions" className="btn-ghost text-sm hidden sm:block">My Submissions</Link>
