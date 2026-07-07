@@ -149,6 +149,27 @@ export default function TaskPage() {
         fileUrl = res[0].ufsUrl;
         fileName = file.name;
       }
+
+      // Archive the round that's being superseded (what was asked, what it scored,
+      // who reviewed it) instead of just overwriting it. Without this, the old
+      // scores/feedback silently linger on the doc after resubmission: the
+      // contributor's own page kept showing "Revision requested" with stale
+      // feedback, and the next reviewer's rubric opened pre-filled with the old
+      // scores as if it had already been assessed.
+      const historyEntry = {
+        round: existingSub.revisionCount ?? 1,
+        requiredChanges: existingSub.requiredChanges || "",
+        revisionDeadline: existingSub.revisionDeadline || "",
+        reviewScores: existingSub.reviewScores || null,
+        reviewJustifications: existingSub.reviewJustifications || null,
+        reviewTotalScore: existingSub.reviewTotalScore ?? null,
+        reviewerWallet: existingSub.reviewerWallet || null,
+        reviewerName: existingSub.reviewerName || null,
+        reviewedAt: existingSub.reviewedAt || null,
+        resubmittedAt: new Date(),
+      };
+      const revisionHistory = [...(existingSub.revisionHistory || []), historyEntry];
+
       await updateDoc(doc(db, "submissions", existingSub.id), {
         githubLink,
         liveLink,
@@ -157,9 +178,28 @@ export default function TaskPage() {
         fileUrl,
         fileName,
         status: "under_review",
+        revisionHistory,
+        // clear the live review state, this round is fresh
+        reviewScores: null,
+        reviewJustifications: null,
+        reviewTotalScore: null,
+        reviewDecision: null,
+        requiredChanges: null,
+        revisionDeadline: null,
         updatedAt: serverTimestamp(),
       });
-      setExistingSub((prev: any) => ({ ...prev, status: "under_review", githubLink, liveLink, publishedLink, notes, fileUrl, fileName }));
+      setExistingSub((prev: any) => ({
+        ...prev,
+        status: "under_review",
+        githubLink, liveLink, publishedLink, notes, fileUrl, fileName,
+        revisionHistory,
+        reviewScores: null,
+        reviewJustifications: null,
+        reviewTotalScore: null,
+        reviewDecision: null,
+        requiredChanges: null,
+        revisionDeadline: null,
+      }));
       setShowResubmit(false);
       setFile(null);
     } catch {
@@ -380,6 +420,22 @@ export default function TaskPage() {
               <div className="mt-3 rounded-lg p-3 bg-yellow-50 border border-yellow-200">
                 <p className="text-xs font-semibold text-yellow-800 mb-1">Admin Review</p>
                 <p className="text-xs text-yellow-700">{existingSub.adminOverrideFeedback}</p>
+              </div>
+            )}
+
+            {existingSub.revisionHistory && existingSub.revisionHistory.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#888888]">Revision History</p>
+                {existingSub.revisionHistory.map((h: any, i: number) => (
+                  <div key={i} className="rounded-lg p-3 bg-[#F4F5F7] border border-[#E8EBF0]">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs font-semibold text-[#1A1A2E]">Round {h.round ?? i + 1}</p>
+                      {h.reviewTotalScore != null && <span className="text-xs font-bold text-[#E63329]">{h.reviewTotalScore}/35</span>}
+                    </div>
+                    {h.requiredChanges && <p className="text-xs text-[#555555] whitespace-pre-line">{h.requiredChanges}</p>}
+                    {h.revisionDeadline && <p className="text-[10px] text-[#AAAAAA] mt-1">Deadline was: {h.revisionDeadline}</p>}
+                  </div>
+                ))}
               </div>
             )}
 

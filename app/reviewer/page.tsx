@@ -40,6 +40,7 @@ export default function ReviewerPage() {
   const [decision, setDecision] = useState<"approved" | "revision" | "rejected" | "">("");
   const [requiredChanges, setRequiredChanges] = useState("");
   const [revisionDeadline, setRevisionDeadline] = useState("");
+  const [revisionFollowupNotes, setRevisionFollowupNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [overrideDecision, setOverrideDecision] = useState<"approved" | "rejected" | "">("");
@@ -139,6 +140,7 @@ export default function ReviewerPage() {
     setDecision(sub.reviewDecision || "");
     setRequiredChanges(sub.requiredChanges || "");
     setRevisionDeadline(sub.revisionDeadline || "");
+    setRevisionFollowupNotes(sub.revisionFollowupNotes || "");
     setOverrideDecision("");
     setOverrideFeedback("");
     setShowHandoff(false);
@@ -267,8 +269,14 @@ export default function ReviewerPage() {
 
   const totalScore = scores.reduce((a, b) => a + b, 0);
 
+  // Per DAO policy (proposal docs): every submission gets exactly one revision
+  // opportunity before a final decision is required. Once used, "Revision
+  // Requested" is disabled in the UI; this is the server-side backstop.
+  const revisionAlreadyUsed = (selected?.revisionCount ?? 0) >= 1;
+
   const submitReview = async () => {
     if (!selected || !decision || scores.some((s) => s === 0)) return;
+    if (decision === "revision" && revisionAlreadyUsed) return;
     setSubmitting(true);
     try {
       await updateDoc(doc(db, "submissions", selected.id), {
@@ -279,6 +287,8 @@ export default function ReviewerPage() {
         reviewTotalScore: totalScore,
         requiredChanges,
         revisionDeadline,
+        revisionFollowupNotes: revisionFollowupNotes || null,
+        ...(decision === "revision" ? { revisionCount: (selected.revisionCount || 0) + 1 } : {}),
         reviewerId: user?.uid,
         reviewerWallet: appUser?.walletAddress,
         reviewerName: appUser?.username || appUser?.discordHandle || null,
@@ -739,16 +749,51 @@ export default function ReviewerPage() {
                       ))}
                     </div>
 
+                    {selected.revisionHistory && selected.revisionHistory.length > 0 && (
+                      <div className="mt-6 pt-6 border-t border-[#E8EBF0] space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-[#888888]">Revision history (read-only)</p>
+                        {selected.revisionHistory.map((h: any, i: number) => (
+                          <div key={i} className="p-3 bg-[#F4F5F7] rounded-lg text-xs">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-semibold text-[#1A1A2E]">
+                                Round {h.round ?? i + 1}{(h.reviewerName || h.reviewerWallet) ? ` (${h.reviewerName || short(h.reviewerWallet)})` : ""}
+                              </span>
+                              {h.reviewTotalScore != null && <span className="font-bold text-[#E63329]">{h.reviewTotalScore}/35</span>}
+                            </div>
+                            {h.requiredChanges && <p className="text-[#555555] whitespace-pre-line">{h.requiredChanges}</p>}
+                          </div>
+                        ))}
+                        <div>
+                          <label className="label">Were the requested changes addressed? <span className="text-[#AAAAAA] font-normal normal-case">(optional note)</span></label>
+                          <textarea className="input text-xs resize-none" rows={2}
+                            placeholder="e.g. Yes, all items fixed. / Partially, item 2 still missing."
+                            value={revisionFollowupNotes} onChange={(e) => setRevisionFollowupNotes(e.target.value)} />
+                        </div>
+                      </div>
+                    )}
+
                     <div className="mt-6 pt-6 border-t border-[#E8EBF0]">
                       <p className="label mb-3">Decision</p>
                       <div className="flex gap-3 mb-4 flex-wrap">
-                        {(["approved", "revision", "rejected"] as const).map((d) => (
-                          <button key={d} type="button" onClick={() => setDecision(d)}
-                            className={`px-4 py-2 rounded text-sm font-semibold transition-colors capitalize ${decision === d ? (d === "approved" ? "bg-green-600 text-white" : d === "rejected" ? "bg-red-600 text-white" : "bg-yellow-500 text-white") : "bg-white border border-[#E8EBF0] text-[#555555] hover:border-[#555555]"}`}>
-                            {d === "revision" ? "Revision Requested" : d.charAt(0).toUpperCase() + d.slice(1)}
-                          </button>
-                        ))}
+                        {(["approved", "revision", "rejected"] as const).map((d) => {
+                          const disabled = d === "revision" && revisionAlreadyUsed;
+                          return (
+                            <button key={d} type="button" disabled={disabled} onClick={() => !disabled && setDecision(d)}
+                              className={`px-4 py-2 rounded text-sm font-semibold transition-colors capitalize ${
+                                disabled
+                                  ? "bg-[#F4F5F7] text-[#AAAAAA] border border-[#E8EBF0] cursor-not-allowed"
+                                  : decision === d ? (d === "approved" ? "bg-green-600 text-white" : d === "rejected" ? "bg-red-600 text-white" : "bg-yellow-500 text-white") : "bg-white border border-[#E8EBF0] text-[#555555] hover:border-[#555555]"
+                              }`}>
+                              {d === "revision" ? "Revision Requested" : d.charAt(0).toUpperCase() + d.slice(1)}
+                            </button>
+                          );
+                        })}
                       </div>
+                      {revisionAlreadyUsed && (
+                        <p className="text-[11px] text-[#888888] mb-3">
+                          This submission already used its one revision opportunity. A final decision (Approved or Rejected) is required.
+                        </p>
+                      )}
 
                       {(decision === "revision" || decision === "rejected") && (
                         <div className="space-y-3">
