@@ -763,8 +763,10 @@ function ReviewerPageInner() {
                 </div>
               </div>
 
-              {/* Right column */}
-              <div className="lg:col-span-2">
+              {/* Right column: sticky + independently scrollable on large screens so a
+                  long task description on the left doesn't leave this section stranded
+                  with blank space once its own content runs out. */}
+              <div className="lg:col-span-2 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1">
                 {isReviewed ? (
                   isAdmin ? (
                     showOverrideForm ? (
