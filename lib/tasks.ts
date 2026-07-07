@@ -77,3 +77,16 @@ export const getSubmissionStatusLabel = (status?: string): string =>
     rejected: "Rejected",
     revision_requested: "Revision requested",
   }[status ?? ""] ?? (status ?? "").replace(/_/g, " "));
+
+// The 7-criterion review rubric, shared by the reviewer detail page (editable)
+// and the read-only rubric view (admin/reviewer looking at a decided review),
+// so both always show the exact same wording for the same criterion.
+export const RUBRIC_CRITERIA = [
+  "Deliverable completeness: does the submission include everything listed in Required Deliverables?",
+  "Quality Benchmarks met: does the submission satisfy each benchmark defined in the task spec?",
+  "Technical accuracy: is the code, analysis, or content factually correct and free of critical errors?",
+  "Documentation quality: is the companion documentation clear, complete, and deployment-ready?",
+  "Test coverage / verification: are all claims, functions, or outputs verifiable and tested?",
+  "Failure Criteria: does the submission avoid every defined failure condition?",
+  "Overall standard: does the submission meet the bar expected for a paid, published deliverable?",
+];

@@ -94,11 +94,10 @@ export default function Navbar() {
     setShowDropdown(false);
     // Contributors: /tasks/[taskId] is a real route and already shows their
     // own submission, decision, and revision history, so go straight there.
-    // Reviewers/admins: /reviewer's detail view isn't its own route yet, so we
-    // pass the submission via a query param and let the page open it once its
-    // data has loaded (see the effect in app/reviewer/page.tsx).
+    // Reviewers/admins: /reviewer/[submissionId] is a real route too, so this
+    // is a plain navigation, no query param, no one-shot open-then-strip logic.
     if (appUser?.role === "admin" || appUser?.role === "reviewer") {
-      if (notif.submissionId) router.push(`/reviewer?submission=${notif.submissionId}`);
+      if (notif.submissionId) router.push(`/reviewer/${notif.submissionId}`);
       else router.push("/reviewer");
     } else if (notif.taskId) {
       router.push(`/tasks/${notif.taskId}`);
