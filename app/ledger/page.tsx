@@ -4,6 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
+import Navbar from "@/components/Navbar";
 import { getLedgerStatusLabel } from "@/lib/ledger";
 
 // Themed pill colors, mirroring the admin ledger palette.
@@ -27,6 +29,7 @@ const rbntLine = (rbnt?: number | null, usd?: number | null) => {
 };
 
 export default function PublicLedgerPage() {
+  const { user } = useAuth();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,16 +49,22 @@ export default function PublicLedgerPage() {
 
   return (
     <div className="min-h-screen bg-[#F4F5F7]">
-      {/* Header */}
-      <header className="page-header">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Image src="/dao-logo.png" alt="Redbelly DAO" height={32} width={47} className="object-contain" />
-            <span className="text-[#555555] text-sm font-medium">Task Board</span>
+      {/* Signed-in users get the normal app nav; signed-out visitors get a
+          minimal public header with a sign-in affordance. The ledger itself is
+          viewable either way. */}
+      {user ? (
+        <Navbar />
+      ) : (
+        <header className="page-header">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <Image src="/dao-logo.png" alt="Redbelly DAO" height={32} width={47} className="object-contain" />
+              <span className="text-[#555555] text-sm font-medium">Task Board</span>
+            </div>
+            <Link href="/login" className="btn-ghost text-sm">Sign in</Link>
           </div>
-          <Link href="/login" className="btn-ghost text-sm">Sign in</Link>
-        </div>
-      </header>
+        </header>
+      )}
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         <h1 className="text-2xl font-bold text-[#1A1A2E] mb-1">Public Transparency Ledger</h1>
