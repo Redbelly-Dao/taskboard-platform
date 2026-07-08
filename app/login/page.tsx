@@ -125,6 +125,9 @@ export default function LoginPage() {
           <p className="text-center text-xs text-[#AAAAAA] mt-6">
             Redbelly DAO Community Task Board · 2026
           </p>
+          <p className="text-center text-xs mt-2">
+            <Link href="/ledger" className="text-[#888888] hover:text-[#E63329] hover:underline">View the public transparency ledger →</Link>
+          </p>
         </div>
       </div>
     </div>

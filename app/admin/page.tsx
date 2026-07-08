@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   collection, getDocs, getDoc, doc, updateDoc, setDoc, deleteDoc, addDoc,
@@ -8,6 +8,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { Task, TaskCategory, TASK_STATUSES, getCategoryLabel, getStatusLabel, getSubmissionStatusLabel, formatReward, displayName } from "@/lib/tasks";
+import { LEDGER_STATUSES, getLedgerStatusLabel, deriveLedgerStatus, pickWinner, ledgerProjection, deliverableLinkOf } from "@/lib/ledger";
 import Navbar from "@/components/Navbar";
 import SubmissionChat from "@/components/SubmissionChat";
 
@@ -24,6 +25,19 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   payment_marked_paid: "Payment Marked Paid",
   payment_winner_selected: "Payment Winner Selected",
   task_deleted: "Task Deleted",
+};
+
+// Pill colors for ledger statuses, themed to the app palette.
+const LEDGER_STATUS_COLOR: Record<string, string> = {
+  open: "bg-[#F4F5F7] text-[#555555]",
+  in_progress: "bg-[#EFF6FF] text-[#1D4ED8]",
+  in_review: "bg-[#EFF6FF] text-[#1D4ED8]",
+  revision: "bg-[#FEFCE8] text-[#A16207]",
+  approved: "bg-[#F0FDF4] text-[#15803D]",
+  awaiting_payment: "bg-[#FEF0EF] text-[#E63329]",
+  paid: "bg-[#F0FDF4] text-[#15803D]",
+  paused: "bg-[#F3F4F6] text-[#6B7280]",
+  rejected: "bg-[#FEF2F2] text-[#CC2820]",
 };
 
 const RUBRIC_CRITERIA = [
@@ -72,6 +86,8 @@ export default function AdminPage() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [ledgerDocs, setLedgerDocs] = useState<Record<string, any>>({});
+  const [expandedLedger, setExpandedLedger] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
 
   // Audit panel (view submission detail)
@@ -140,16 +156,20 @@ export default function AdminPage() {
   }, [user, appUser, loading, router]);
 
   const doFetchAll = async () => {
-    const [subsSnap, usersSnap, tasksSnap] = await Promise.all([
+    const [subsSnap, usersSnap, tasksSnap, ledgerSnap] = await Promise.all([
       getDocs(query(collection(db, "submissions"), orderBy("createdAt", "desc"))),
       getDocs(collection(db, "users")),
       getDocs(collection(db, "tasks")),
+      getDocs(collection(db, "ledger")),
     ]);
     setSubmissions(subsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     setUsers(usersSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     const taskList = tasksSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Task));
     taskList.sort((a, b) => (a.number || 0) - (b.number || 0));
     setTasks(taskList);
+    const lmap: Record<string, any> = {};
+    ledgerSnap.docs.forEach((d) => { lmap[d.id] = { id: d.id, ...d.data() }; });
+    setLedgerDocs(lmap);
     setDataLoading(false);
   };
 
@@ -338,13 +358,44 @@ export default function AdminPage() {
     }
   };
 
+  const subsForTask = (taskId: string) => submissions.filter((s) => s.taskId === taskId);
+
+  // Write the community-safe projection to ledger/{taskId}. Auto-called after
+  // any action that changes a task's public state (winner pick, mark paid,
+  // status change, inline edit), keeping the public /ledger page current.
+  // `subsOverride` lets callers pass freshly-mutated submissions before state
+  // has flushed. Never writes PII.
+  const publishLedger = async (taskId: string, subsOverride?: any[]) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const subs = subsOverride ?? subsForTask(taskId);
+    const projection = ledgerProjection(task, subs, ledgerDocs[taskId] || {});
+    await setDoc(doc(db, "ledger", taskId), { ...projection, updatedAt: serverTimestamp() }, { merge: true });
+    setLedgerDocs((prev) => ({ ...prev, [taskId]: { ...(prev[taskId] || {}), ...projection } }));
+  };
+
+  // Edit an admin-controlled ledger field (deliverable link, tx hash, status
+  // override, usdt amount, dates, public note). Persists straight to the public
+  // ledger doc and updates local state.
+  const saveLedgerField = async (taskId: string, field: string, value: string) => {
+    await setDoc(doc(db, "ledger", taskId), { [field]: value, taskId, updatedAt: serverTimestamp() }, { merge: true });
+    setLedgerDocs((prev) => ({ ...prev, [taskId]: { ...(prev[taskId] || {}), [field]: value } }));
+  };
+
+  const publishAllLedger = async () => {
+    for (const t of tasks) await publishLedger(t.id);
+    alert("Public ledger synced for all tasks.");
+  };
+
   // Resolve a payment tie: mark one tied submission the winner and clear the
   // flag on the others for that task, so exactly one is payable.
   const choosePaymentWinner = async (taskId: string, subId: string) => {
     const group = submissions.filter((s) => s.taskId === taskId && s.status === "approved" && !s.paymentProcessed);
     await Promise.all(group.map((s) => updateDoc(doc(db, "submissions", s.id), { paymentWinner: s.id === subId })));
-    setSubmissions((prev) => prev.map((s) => group.some((g) => g.id === s.id) ? { ...s, paymentWinner: s.id === subId } : s));
+    const nextSubs = submissions.map((s) => group.some((g) => g.id === s.id) ? { ...s, paymentWinner: s.id === subId } : s);
+    setSubmissions(nextSubs);
     await logAdminAction("payment_winner_selected", { taskId, submissionId: subId });
+    await publishLedger(taskId, nextSubs.filter((s) => s.taskId === taskId));
   };
 
   const markAsPaid = async (subId: string) => {
@@ -357,12 +408,14 @@ export default function AdminPage() {
         paymentProcessedBy: user?.uid,
         paymentProcessedByWallet: appUser?.walletAddress,
       });
-      setSubmissions((prev) => prev.map((s) => s.id === subId ? { ...s, paymentProcessed: true } : s));
+      const nextSubs = submissions.map((s) => s.id === subId ? { ...s, paymentProcessed: true, paymentProcessedAt: { seconds: Date.now() / 1000 } } : s);
+      setSubmissions(nextSubs);
       await logAdminAction("payment_marked_paid", {
         submissionId: subId,
         taskId: sub?.taskId,
         contributorWallet: sub?.walletAddress,
       });
+      if (sub?.taskId) await publishLedger(sub.taskId, nextSubs.filter((s) => s.taskId === sub.taskId));
       setPayConfirmId(null);
     } catch {
       alert("Failed to mark as paid. Try again.");
@@ -373,7 +426,16 @@ export default function AdminPage() {
 
   const updateTaskStatus = async (taskId: string, newStatus: Task["status"]) => {
     await updateDoc(doc(db, "tasks", taskId), { status: newStatus });
-    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: newStatus } : t));
+    const nextTasks = tasks.map((t) => t.id === taskId ? { ...t, status: newStatus } : t);
+    setTasks(nextTasks);
+    // Reflect the status change on the public ledger (derived from the new task
+    // status). Compute against the updated task rather than stale state.
+    const task = nextTasks.find((t) => t.id === taskId);
+    if (task) {
+      const projection = ledgerProjection(task, subsForTask(taskId), ledgerDocs[taskId] || {});
+      await setDoc(doc(db, "ledger", taskId), { ...projection, updatedAt: serverTimestamp() }, { merge: true });
+      setLedgerDocs((prev) => ({ ...prev, [taskId]: { ...(prev[taskId] || {}), ...projection } }));
+    }
   };
 
   const openAddTask = () => {
@@ -570,28 +632,56 @@ export default function AdminPage() {
     return acc;
   }, {} as Record<string, number>);
 
-  const exportPaymentBatch = () => {
-    // RBNT is the actual payout currency (splits are 100% RBNT); USD is the
-    // reference value. Reviewer comp is 20% of the task reward.
-    const esc = (v: any) => {
-      const str = String(v ?? "");
-      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-    };
-    const rows = [
-      ["Task ID", "Task Title", "Contributor Wallet", "Contributor RBNT", "Contributor USD", "Reviewer Wallet", "Reviewer RBNT", "Reviewer USD", "Split"],
-      ...payableWinners.map((s) => {
-        const task = tasks.find((t) => t.id === s.taskId);
-        const reviewerRbnt = task?.rewardRbnt ? Math.round(task.rewardRbnt * 0.2) : "";
-        return [s.taskId, s.taskTitle, s.walletAddress, task?.rewardRbnt ?? "", task?.reward ?? "", s.reviewerWallet ?? "", reviewerRbnt, task?.reviewerComp ?? "", task?.paymentSplit ?? ""];
-      }),
-    ];
-    const csv = rows.map((r) => r.map(esc).join(",")).join("\n");
+  const csvEsc = (v: any) => {
+    const str = String(v ?? "");
+    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+  const downloadCsv = (rows: any[][], name: string) => {
+    const csv = rows.map((r) => r.map(csvEsc).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `payment-batch-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `${name}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
+  };
+
+  // Private full detail for the High Council multi-sig hand-off, mirroring the
+  // Admin Tracker sheet schema. One row per payable winner (approved + on a
+  // completed task). RBNT is the payout currency; USD is reference.
+  const exportAdminTracker = () => {
+    const rows: any[][] = [[
+      "Task ID", "Task Title", "Category", "Cycle", "Ledger Status", "Contributor", "Contributor Discord",
+      "Contributor Email", "Contributor Wallet", "Reviewer", "Reviewer Wallet", "Rubric /35", "Revision Count",
+      "Contributor Reward ($)", "Contributor RBNT", "Reviewer Comp ($)", "Reviewer RBNT", "USDT Amount",
+      "Payment Split", "Payment TX Hash", "Deliverable Link", "Public Note",
+    ]];
+    payableWinners.forEach((s) => {
+      const task = tasks.find((t) => t.id === s.taskId);
+      const led = ledgerDocs[s.taskId] || {};
+      const contributor = users.find((u) => u.walletAddress?.toLowerCase() === s.walletAddress?.toLowerCase());
+      const reviewerRbnt = task?.rewardRbnt ? Math.round(task.rewardRbnt * 0.2) : "";
+      rows.push([
+        s.taskId, s.taskTitle, task?.category ?? "", s.cycle ?? "", getLedgerStatusLabel(deriveLedgerStatus(task as Task, subsForTask(s.taskId))),
+        displayName(s.username, s.discordHandle, s.walletAddress), s.discordHandle ?? "", contributor?.email ?? "", s.walletAddress ?? "",
+        s.reviewerName ?? "", s.reviewerWallet ?? "", s.reviewTotalScore ?? "", s.revisionCount ?? 0,
+        task?.reward ?? "", task?.rewardRbnt ?? "", task?.reviewerComp ?? "", reviewerRbnt, led.usdtAmount ?? "",
+        task?.paymentSplit ?? "", led.paidTxHash ?? "", led.deliverableLink || (s ? deliverableLinkOf(s) : ""), led.publicNote ?? "",
+      ]);
+    });
+    downloadCsv(rows, "admin-tracker");
+  };
+
+  // Community-safe public ledger, mirroring the public Transparency Ledger sheet:
+  // no identities, just task, status, RBNT payout (with USD), deliverable link.
+  const exportPublicLedger = () => {
+    const rows: any[][] = [["Task ID", "Current Status", "RBNT Payout", "USD Payout", "Deliverable Link"]];
+    [...tasks].sort((a, b) => (a.number || 0) - (b.number || 0)).forEach((t) => {
+      const led = ledgerDocs[t.id] || {};
+      const status = led.statusOverride || deriveLedgerStatus(t, subsForTask(t.id));
+      rows.push([t.id, getLedgerStatusLabel(status), led.payoutRbnt ?? t.rewardRbnt ?? "", led.payoutUsd ?? t.reward ?? "", led.deliverableLink ?? ""]);
+    });
+    downloadCsv(rows, "public-ledger");
   };
 
   if (loading || dataLoading) return (
@@ -620,7 +710,7 @@ export default function AdminPage() {
     { value: "submissions", label: "Submissions" },
     { value: "tasks", label: "Tasks" },
     { value: "users", label: "Users" },
-    { value: "payments", label: "Payments" },
+    { value: "payments", label: "Ledger" },
     { value: "reviewers", label: "Reviewers" },
     { value: "audit", label: "Audit Log" },
     { value: "feedback", label: "Feedback" },
@@ -1003,13 +1093,20 @@ export default function AdminPage() {
         {/* PAYMENTS TAB */}
         {tab === "payments" && (
           <div>
-            <div className="bg-[#FEF0EF] border border-[#E63329]/20 rounded-xl p-4 mb-6">
-              <p className="text-sm font-semibold text-[#E63329] mb-1">Payment Process</p>
-              <p className="text-xs text-[#555555]">
-                Only the highest-scoring approved submission on a <span className="font-semibold">Completed</span> task is payable.
-                Mark a task Completed (Tasks tab or the review page) to release its winner into this queue.
-                RBNT is paid at market price on the day of disbursement. Mark each row as paid after disbursement to close the loop.
-              </p>
+            <div className="bg-[#FEF0EF] border border-[#E63329]/20 rounded-xl p-4 mb-6 flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-sm font-semibold text-[#E63329] mb-1">Task Board Ledger</p>
+                <p className="text-xs text-[#555555] max-w-2xl">
+                  The single source of truth for task status, winners, and payouts. Edits here publish straight to the
+                  public transparency ledger at <span className="font-mono">/ledger</span> (community-facing, no identities).
+                  Only the highest-scoring approved submission on a <span className="font-semibold">Completed</span> task is payable.
+                </p>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <button onClick={publishAllLedger} className="btn-secondary text-xs px-3 py-1.5">Sync public ledger</button>
+                <button onClick={exportAdminTracker} className="btn-ghost text-xs px-3 py-1.5 border border-[#E8EBF0] rounded-lg">Admin Tracker CSV</button>
+                <button onClick={exportPublicLedger} className="btn-ghost text-xs px-3 py-1.5 border border-[#E8EBF0] rounded-lg">Public Ledger CSV</button>
+              </div>
             </div>
 
             {heldForCompletion.length > 0 && (
@@ -1047,47 +1144,107 @@ export default function AdminPage() {
             )}
 
             <div className="card overflow-hidden mb-4">
-              <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: "#2C2C2C" }}>
-                <p className="text-white font-semibold text-sm">Pending Payment ({payableWinners.length})</p>
-                {payableWinners.length > 0 && (
-                  <button onClick={exportPaymentBatch} className="btn-primary text-xs px-3 py-1.5">Export CSV</button>
-                )}
+              <div className="px-4 py-3" style={{ backgroundColor: "#2C2C2C" }}>
+                <p className="text-white font-semibold text-sm">Ledger ({tasks.length} tasks)</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#F4F5F7] text-xs text-[#888888] border-b border-[#E8EBF0]">
                       <th className="text-left px-4 py-3 font-semibold">Task</th>
-                      <th className="text-left px-4 py-3 font-semibold">Contributor Wallet</th>
+                      <th className="text-left px-4 py-3 font-semibold">Status</th>
+                      <th className="text-left px-4 py-3 font-semibold">Winner</th>
+                      <th className="text-left px-4 py-3 font-semibold">Rubric</th>
                       <th className="text-left px-4 py-3 font-semibold">Contributor Pay</th>
-                      <th className="text-left px-4 py-3 font-semibold">Reviewer Wallet</th>
                       <th className="text-left px-4 py-3 font-semibold">Reviewer Pay</th>
-                      <th className="text-left px-4 py-3 font-semibold">Action</th>
+                      <th className="text-left px-4 py-3 font-semibold">Deliverable Link</th>
+                      <th className="text-left px-4 py-3 font-semibold">Payment TX</th>
+                      <th className="text-left px-4 py-3 font-semibold"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {payableWinners.map((sub, i) => {
-                      const task = tasks.find((t) => t.id === sub.taskId);
+                    {tasks.map((task, i) => {
+                      const subs = subsForTask(task.id);
+                      const { winner } = pickWinner(subs);
+                      const led = ledgerDocs[task.id] || {};
+                      const status = led.statusOverride || deriveLedgerStatus(task, subs);
+                      const reviewerRbnt = task.rewardRbnt ? Math.round(task.rewardRbnt * 0.2) : undefined;
+                      const expanded = expandedLedger === task.id;
+                      const canPay = winner && task.status === "completed" && !winner.paymentProcessed;
                       return (
-                        <tr key={sub.id} className={`border-b border-[#F4F5F7] ${i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
-                          <td className="px-4 py-3 font-mono text-xs font-semibold text-[#1A1A2E]">{sub.taskId}</td>
-                          <td className="px-4 py-3 font-mono text-xs text-[#1A1A2E]">{sub.walletAddress}</td>
-                          <td className="px-4 py-3 font-bold text-xs text-[#E63329]">{task ? formatReward(task.rewardRbnt, task.reward) : "-"}</td>
-                          <td className="px-4 py-3 font-mono text-xs text-[#888888]">{sub.reviewerWallet || "-"}</td>
-                          <td className="px-4 py-3 text-xs text-[#888888]">{task?.reviewerComp ? formatReward(task.rewardRbnt ? Math.round(task.rewardRbnt * 0.2) : undefined, task.reviewerComp) : "N/A"}</td>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => setPayConfirmId(sub.id)}
-                              className="text-xs text-green-600 font-semibold hover:text-green-800 transition-colors"
-                            >
-                              Mark Paid
-                            </button>
-                          </td>
-                        </tr>
+                        <Fragment key={task.id}>
+                          <tr className={`border-b border-[#F4F5F7] ${i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
+                            <td className="px-4 py-3 font-mono text-xs font-semibold text-[#1A1A2E]">{task.id}{winner?.cycle != null && <span className="ml-1 text-[10px] text-[#AAAAAA]">c{winner.cycle}</span>}</td>
+                            <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${LEDGER_STATUS_COLOR[status] || "bg-[#F4F5F7] text-[#555555]"}`}>{getLedgerStatusLabel(status)}</span></td>
+                            <td className="px-4 py-3 text-xs text-[#1A1A2E]">{winner ? <span title={winner.walletAddress}>{displayName(winner.username, winner.discordHandle, winner.walletAddress)}</span> : <span className="text-[#AAAAAA]">-</span>}</td>
+                            <td className="px-4 py-3 text-xs">{winner?.reviewTotalScore != null ? <span className="font-bold text-[#E63329]">{winner.reviewTotalScore}/35</span> : <span className="text-[#AAAAAA]">-</span>}</td>
+                            <td className="px-4 py-3 text-xs font-semibold text-[#1A1A2E]">{formatReward(task.rewardRbnt, task.reward)}</td>
+                            <td className="px-4 py-3 text-xs text-[#888888]">{task.reviewerComp ? formatReward(reviewerRbnt, task.reviewerComp) : "N/A"}</td>
+                            <td className="px-4 py-3">
+                              <input
+                                defaultValue={led.deliverableLink || (winner ? deliverableLinkOf(winner) : "")}
+                                onBlur={(e) => { if (e.target.value !== (led.deliverableLink || (winner ? deliverableLinkOf(winner) : ""))) saveLedgerField(task.id, "deliverableLink", e.target.value.trim()); }}
+                                placeholder="deliverable URL"
+                                className="w-40 text-xs border border-[#E8EBF0] rounded px-2 py-1 bg-white focus:outline-none focus:border-[#E63329]"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <input
+                                defaultValue={led.paidTxHash || ""}
+                                onBlur={(e) => { if (e.target.value !== (led.paidTxHash || "")) saveLedgerField(task.id, "paidTxHash", e.target.value.trim()); }}
+                                placeholder="0x..."
+                                className="w-32 text-xs font-mono border border-[#E8EBF0] rounded px-2 py-1 bg-white focus:outline-none focus:border-[#E63329]"
+                              />
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {canPay && <button onClick={() => setPayConfirmId(winner.id)} className="text-xs text-green-600 font-semibold hover:text-green-800 mr-3">Mark Paid</button>}
+                              {winner?.paymentProcessed && <span className="text-xs text-green-600 font-semibold mr-3">Paid ✓</span>}
+                              <button onClick={() => setExpandedLedger(expanded ? null : task.id)} className="text-xs text-[#888888] hover:text-[#E63329]">{expanded ? "Close" : "Edit"}</button>
+                            </td>
+                          </tr>
+                          {expanded && (
+                            <tr className="bg-[#FBFBFC] border-b border-[#E8EBF0]">
+                              <td colSpan={9} className="px-4 py-4">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                                  <label className="text-xs text-[#555555]">Status override
+                                    <select defaultValue={led.statusOverride || ""} onChange={(e) => saveLedgerField(task.id, "statusOverride", e.target.value)} className="mt-1 w-full text-xs border border-[#E8EBF0] rounded px-2 py-1 bg-white">
+                                      <option value="">Auto ({getLedgerStatusLabel(deriveLedgerStatus(task, subs))})</option>
+                                      {LEDGER_STATUSES.map((s) => <option key={s} value={s}>{getLedgerStatusLabel(s)}</option>)}
+                                    </select>
+                                  </label>
+                                  <label className="text-xs text-[#555555]">USDT amount
+                                    <input defaultValue={led.usdtAmount || ""} onBlur={(e) => saveLedgerField(task.id, "usdtAmount", e.target.value.trim())} className="mt-1 w-full text-xs border border-[#E8EBF0] rounded px-2 py-1 bg-white" />
+                                  </label>
+                                  <label className="text-xs text-[#555555]">Assigned date
+                                    <input type="date" defaultValue={led.assignedDate || ""} onBlur={(e) => saveLedgerField(task.id, "assignedDate", e.target.value)} className="mt-1 w-full text-xs border border-[#E8EBF0] rounded px-2 py-1 bg-white" />
+                                  </label>
+                                  <label className="text-xs text-[#555555]">Due date
+                                    <input type="date" defaultValue={led.dueDate || ""} onBlur={(e) => saveLedgerField(task.id, "dueDate", e.target.value)} className="mt-1 w-full text-xs border border-[#E8EBF0] rounded px-2 py-1 bg-white" />
+                                  </label>
+                                </div>
+                                <label className="text-xs text-[#555555] block mb-3">Public note (shown on the community ledger)
+                                  <input defaultValue={led.publicNote || ""} onBlur={(e) => saveLedgerField(task.id, "publicNote", e.target.value)} placeholder="e.g. paid in batch 2" className="mt-1 w-full text-xs border border-[#E8EBF0] rounded px-2 py-1 bg-white" />
+                                </label>
+                                <p className="text-[10px] uppercase tracking-wide text-[#AAAAAA] mb-1">Submissions ({subs.length})</p>
+                                <div className="space-y-1">
+                                  {subs.length === 0 && <p className="text-xs text-[#AAAAAA]">None yet.</p>}
+                                  {subs.map((s) => (
+                                    <div key={s.id} className="flex items-center gap-3 text-xs text-[#555555]">
+                                      <span className="w-40 truncate">{displayName(s.username, s.discordHandle, s.walletAddress)}</span>
+                                      <span className={`badge-${s.status} text-[10px]`}>{getSubmissionStatusLabel(s.status)}</span>
+                                      <span>{s.reviewTotalScore != null ? `${s.reviewTotalScore}/35` : "unscored"}</span>
+                                      {s.id === winner?.id && <span className="text-green-600 font-semibold">winner</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
-                    {payableWinners.length === 0 && (
-                      <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-[#AAAAAA]">No winners pending payment. Mark a task Completed to release its top submission.</td></tr>
+                    {tasks.length === 0 && (
+                      <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-[#AAAAAA]">No tasks yet.</td></tr>
                     )}
                   </tbody>
                 </table>

@@ -133,6 +133,7 @@ export default function Navbar() {
                 <>
                   <Link href="/admin" className="btn-ghost text-sm hidden sm:block">Admin</Link>
                   <Link href="/reviewer" className="btn-ghost text-sm hidden sm:block">Reviews</Link>
+                  <Link href="/ledger" className="btn-ghost text-sm hidden sm:block">Ledger</Link>
                 </>
               )}
               {appUser.role === "reviewer" && (
