@@ -35,8 +35,11 @@ export default function PublicLedgerPage() {
 
   useEffect(() => {
     getDocs(collection(db, "ledger")).then((snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
-      list.sort((a, b) => (a.taskNumber || 0) - (b.taskNumber || 0));
+      const list = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as any))
+        // The ledger only shows completed tasks; guard against any stale entries.
+        .filter((r) => r.taskStatus === "completed")
+        .sort((a, b) => (a.taskNumber || 0) - (b.taskNumber || 0));
       setRows(list);
       setLoading(false);
     }).catch(() => setLoading(false));

@@ -80,6 +80,8 @@ export function ledgerProjection(task: Task, subsForTask: any[], existing: any =
     taskNumber: task.number ?? 0,
     title: task.title ?? "",
     category: task.category ?? "",
+    taskStatus: task.status, // real task lifecycle status; only "completed" tasks belong on the ledger
+
     cycle: winner?.cycle ?? existing.cycle ?? null,
     status: existing.statusOverride || derivedStatus,
     payoutRbnt: existing.payoutRbnt ?? task.rewardRbnt ?? null,

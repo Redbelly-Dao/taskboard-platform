@@ -365,9 +365,19 @@ export default function AdminPage() {
   // status change, inline edit), keeping the public /ledger page current.
   // `subsOverride` lets callers pass freshly-mutated submissions before state
   // has flushed. Never writes PII.
-  const publishLedger = async (taskId: string, subsOverride?: any[]) => {
-    const task = tasks.find((t) => t.id === taskId);
+  const publishLedger = async (taskId: string, subsOverride?: any[], taskOverride?: Task) => {
+    const task = taskOverride ?? tasks.find((t) => t.id === taskId);
     if (!task) return;
+    // Only completed tasks belong on the ledger. If a task is not (or no longer)
+    // completed, remove any ledger entry so it never surfaces publicly, even if
+    // it has approved submissions.
+    if (task.status !== "completed") {
+      if (ledgerDocs[taskId]) {
+        await deleteDoc(doc(db, "ledger", taskId)).catch(() => {});
+        setLedgerDocs((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+      }
+      return;
+    }
     const subs = subsOverride ?? subsForTask(taskId);
     const projection = ledgerProjection(task, subs, ledgerDocs[taskId] || {});
     await setDoc(doc(db, "ledger", taskId), { ...projection, updatedAt: serverTimestamp() }, { merge: true });
@@ -428,14 +438,9 @@ export default function AdminPage() {
     await updateDoc(doc(db, "tasks", taskId), { status: newStatus });
     const nextTasks = tasks.map((t) => t.id === taskId ? { ...t, status: newStatus } : t);
     setTasks(nextTasks);
-    // Reflect the status change on the public ledger (derived from the new task
-    // status). Compute against the updated task rather than stale state.
-    const task = nextTasks.find((t) => t.id === taskId);
-    if (task) {
-      const projection = ledgerProjection(task, subsForTask(taskId), ledgerDocs[taskId] || {});
-      await setDoc(doc(db, "ledger", taskId), { ...projection, updatedAt: serverTimestamp() }, { merge: true });
-      setLedgerDocs((prev) => ({ ...prev, [taskId]: { ...(prev[taskId] || {}), ...projection } }));
-    }
+    // Publish to (or remove from) the public ledger based on the NEW status:
+    // marking completed adds it, moving off completed removes it.
+    await publishLedger(taskId, subsForTask(taskId), nextTasks.find((t) => t.id === taskId));
   };
 
   const openAddTask = () => {
@@ -531,6 +536,9 @@ export default function AdminPage() {
   // (equal top score) is not auto-resolved: the admin picks the winner, which
   // sets `paymentWinner` on the chosen submission.
   const completedTaskIds = new Set(tasks.filter((t) => t.status === "completed").map((t) => t.id));
+  // The ledger only tracks completed tasks (an approved submission alone does
+  // not put a task on the ledger; the Completed tag does).
+  const ledgerTasks = tasks.filter((t) => t.status === "completed");
   const scoreOf = (s: any) => s.reviewTotalScore ?? -1;
 
   const approvedUnpaidOnCompleted = submissions.filter(
@@ -676,7 +684,7 @@ export default function AdminPage() {
   // no identities, just task, status, RBNT payout (with USD), deliverable link.
   const exportPublicLedger = () => {
     const rows: any[][] = [["Task ID", "Current Status", "RBNT Payout", "USD Payout", "Deliverable Link"]];
-    [...tasks].sort((a, b) => (a.number || 0) - (b.number || 0)).forEach((t) => {
+    [...ledgerTasks].sort((a, b) => (a.number || 0) - (b.number || 0)).forEach((t) => {
       const led = ledgerDocs[t.id] || {};
       const status = led.statusOverride || deriveLedgerStatus(t, subsForTask(t.id));
       rows.push([t.id, getLedgerStatusLabel(status), led.payoutRbnt ?? t.rewardRbnt ?? "", led.payoutUsd ?? t.reward ?? "", led.deliverableLink ?? ""]);
@@ -1145,7 +1153,7 @@ export default function AdminPage() {
 
             <div className="card overflow-hidden mb-4">
               <div className="px-4 py-3" style={{ backgroundColor: "#2C2C2C" }}>
-                <p className="text-white font-semibold text-sm">Ledger ({tasks.length} tasks)</p>
+                <p className="text-white font-semibold text-sm">Ledger ({ledgerTasks.length} completed task{ledgerTasks.length === 1 ? "" : "s"})</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1163,7 +1171,7 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {tasks.map((task, i) => {
+                    {ledgerTasks.map((task, i) => {
                       const subs = subsForTask(task.id);
                       const { winner } = pickWinner(subs);
                       const led = ledgerDocs[task.id] || {};
@@ -1243,8 +1251,8 @@ export default function AdminPage() {
                         </Fragment>
                       );
                     })}
-                    {tasks.length === 0 && (
-                      <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-[#AAAAAA]">No tasks yet.</td></tr>
+                    {ledgerTasks.length === 0 && (
+                      <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-[#AAAAAA]">No completed tasks yet. Mark a task Completed (Tasks tab or the review page) to add it to the ledger.</td></tr>
                     )}
                   </tbody>
                 </table>
