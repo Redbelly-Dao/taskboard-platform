@@ -630,6 +630,7 @@ export default function AdminPage() {
     if (!userSearch) return true;
     const q = userSearch.toLowerCase();
     return (
+      u.username?.toLowerCase().includes(q) ||
       u.walletAddress?.toLowerCase().includes(q) ||
       u.discordHandle?.toLowerCase().includes(q)
     );
@@ -1035,6 +1036,7 @@ export default function AdminPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#F4F5F7] text-xs text-[#888888] border-b border-[#E8EBF0]">
+                    <th className="text-left px-4 py-3 font-semibold">Display Name</th>
                     <th className="text-left px-4 py-3 font-semibold">Wallet Address</th>
                     <th className="text-left px-4 py-3 font-semibold">Discord</th>
                     <th className="text-left px-4 py-3 font-semibold">Role</th>
@@ -1046,6 +1048,7 @@ export default function AdminPage() {
                 <tbody>
                   {filteredUsers.map((u, i) => (
                     <tr key={u.id} className={`border-b border-[#F4F5F7] ${u.suspended ? "opacity-50" : i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
+                      <td className="px-4 py-3 text-xs font-semibold text-[#1A1A2E]">{u.username || <span className="text-[#AAAAAA] font-normal">-</span>}</td>
                       <td className="px-4 py-3 font-mono text-xs text-[#1A1A2E]">{u.walletAddress}</td>
                       <td className="px-4 py-3 text-xs text-[#888888]">{u.discordHandle || "-"}</td>
                       <td className="px-4 py-3">
@@ -1088,7 +1091,7 @@ export default function AdminPage() {
                     </tr>
                   ))}
                   {filteredUsers.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-[#AAAAAA]">
+                    <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-[#AAAAAA]">
                       {users.length === 0 ? "No users yet." : "No users match your search."}
                     </td></tr>
                   )}
