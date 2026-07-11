@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import SuspendedGate from "@/components/SuspendedGate";
+import BoardPauseGate from "@/components/BoardPauseGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Web3Provider } from "@/components/Web3Provider";
 
@@ -16,11 +17,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-sans">
         <Web3Provider>
           <AuthProvider>
-            <SuspendedGate>
-              <ErrorBoundary>
-                {children}
-              </ErrorBoundary>
-            </SuspendedGate>
+            <BoardPauseGate>
+              <SuspendedGate>
+                <ErrorBoundary>
+                  {children}
+                </ErrorBoundary>
+              </SuspendedGate>
+            </BoardPauseGate>
           </AuthProvider>
         </Web3Provider>
       </body>

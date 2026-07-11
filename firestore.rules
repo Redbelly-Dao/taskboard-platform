@@ -148,9 +148,11 @@ service cloud.firestore {
 
     // Global config singletons (e.g. the submission cycle counter). Readable
     // by any authenticated user so the submit page can show the current
-    // cycle; only admins advance/rewind it.
+    // cycle; only admins advance/rewind it. The board pause flag ("board") is
+    // world-readable so the maintenance gate resolves before/without login and
+    // the public ledger keeps working while the board is paused.
     match /config/{configId} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null || configId == "board";
       allow write: if request.auth != null && role() == "admin";
     }
 

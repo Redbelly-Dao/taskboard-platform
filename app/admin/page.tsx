@@ -195,6 +195,30 @@ export default function AdminPage() {
     await setDoc(doc(db, "config", "cycle"), { current: next }, { merge: true });
   };
 
+  // Board-wide maintenance pause. When on, everyone except admins sees a paused
+  // screen instead of the board; the public /ledger stays open. Admins keep full
+  // access so they can lift the pause.
+  const [boardPaused, setBoardPaused] = useState(false);
+  const [pauseMessage, setPauseMessage] = useState("");
+  useEffect(() => {
+    if (!user || appUser?.role !== "admin") return;
+    getDoc(doc(db, "config", "board")).then((snap) => {
+      setBoardPaused(!!snap.data()?.paused);
+      setPauseMessage(snap.data()?.message ?? "");
+    });
+  }, [user, appUser]);
+
+  const toggleBoardPause = async () => {
+    const next = !boardPaused;
+    if (next && !confirm("Pause the whole Task Board? Everyone except admins will see a maintenance screen. The public ledger stays visible.")) return;
+    setBoardPaused(next);
+    await setDoc(doc(db, "config", "board"), { paused: next, message: pauseMessage || "" }, { merge: true });
+  };
+
+  const savePauseMessage = async () => {
+    await setDoc(doc(db, "config", "board"), { message: pauseMessage || "" }, { merge: true });
+  };
+
   // Display-only order: completed tasks sink to the bottom, otherwise the
   // existing by-number order is preserved. Deliberately not mutating `tasks`
   // itself, since openAddTask/saveTask compute the next TASK-NN id from
@@ -899,6 +923,36 @@ export default function AdminPage() {
         {/* TASKS TAB */}
         {tab === "tasks" && (
           <div>
+            {/* Board-wide maintenance pause */}
+            <div className={`rounded-xl p-4 mb-6 border ${boardPaused ? "bg-[#FEF0EF] border-[#E63329]/30" : "bg-white border-[#E8EBF0]"}`}>
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <p className={`text-sm font-semibold mb-1 ${boardPaused ? "text-[#E63329]" : "text-[#1A1A2E]"}`}>
+                    {boardPaused ? "Board is paused" : "Board is live"}
+                  </p>
+                  <p className="text-xs text-[#555555] max-w-2xl">
+                    {boardPaused
+                      ? "Everyone except admins sees a maintenance screen instead of the board. The public ledger stays visible. You keep full access."
+                      : "Pause the whole board for maintenance between cycles. The public ledger stays visible, and admins keep full access."}
+                  </p>
+                </div>
+                <button
+                  onClick={toggleBoardPause}
+                  className={`text-xs px-4 py-2 rounded-lg font-semibold ${boardPaused ? "btn-primary" : "border border-[#E63329] text-[#E63329] hover:bg-[#FEF0EF]"}`}
+                >
+                  {boardPaused ? "Reopen board" : "Pause board"}
+                </button>
+              </div>
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <input
+                  value={pauseMessage}
+                  onChange={(e) => setPauseMessage(e.target.value)}
+                  onBlur={savePauseMessage}
+                  placeholder="Optional message shown on the paused screen (defaults to a standard maintenance note)"
+                  className="input text-xs flex-1 min-w-[240px]"
+                />
+              </div>
+            </div>
             <div className="card overflow-hidden">
               <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: "#2C2C2C" }}>
                 <p className="text-white font-semibold text-sm">All Tasks ({tasks.length})</p>
