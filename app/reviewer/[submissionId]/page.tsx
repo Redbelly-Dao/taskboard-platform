@@ -613,8 +613,16 @@ function ReviewerSubmissionPageInner() {
                   {(decision === "revision" || decision === "rejected") && (
                     <div className="space-y-3">
                       <div>
-                        <label className="label">Required Changes <span className="text-xs text-outline font-normal normal-case">(number each item, max 3 sentences per item)</span></label>
-                        <textarea className="input resize-none text-sm" rows={4} placeholder="1. [What needs to change, referencing the specific benchmark]&#10;2.&#10;3." value={requiredChanges} onChange={(e) => setRequiredChanges(e.target.value)} />
+                        {decision === "revision" ? (
+                          <label className="label">Required Changes <span className="text-xs text-outline font-normal normal-case">(number each item, max 3 sentences per item)</span></label>
+                        ) : (
+                          <label className="label">Rejection feedback <span className="text-xs text-outline font-normal normal-case">(shown to the contributor with their scores)</span></label>
+                        )}
+                        <textarea className="input resize-none text-sm" rows={4}
+                          placeholder={decision === "revision"
+                            ? "1. [What needs to change, referencing the specific benchmark]\n2.\n3."
+                            : "What fell short, and on which criteria."}
+                          value={requiredChanges} onChange={(e) => setRequiredChanges(e.target.value)} />
                       </div>
                       {decision === "revision" && (
                         <p className="text-[11px] text-outline">The contributor gets {REVISION_DAYS} days from now to resubmit. The deadline is set automatically.</p>
