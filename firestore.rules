@@ -192,7 +192,10 @@ service cloud.firestore {
         && request.resource.data.contributorId == request.auth.uid
         && request.resource.data.status == "open"
         && get(/databases/$(database)/documents/submissions/$(submissionId)).data.contributorId == request.auth.uid;
+      // resource == null lets the contributor's live listener attach before any
+      // appeal exists; reading a missing doc otherwise fails the rule outright.
       allow read: if request.auth != null && (
+        resource == null ||
         resource.data.contributorId == request.auth.uid ||
         role() == "admin"
       );
