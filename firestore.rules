@@ -7,13 +7,12 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
-    // True if the calling reviewer has submitted to this task themselves and so
-    // must not act on its submissions (conflict of interest). Used ONLY on
-    // single-document writes (submission update), never on a list-query read
-    // rule: "rules are not filters", so a get()-based per-document condition in
-    // a list read rule fails the whole query the moment it's false for any one
-    // matched doc, which is exactly how the reviewer queue broke. Reads stay
-    // permissive (role-based) and the conflict is hidden client-side instead.
+    // True if the calling reviewer has submitted to this task themselves and so must not act on its submissions
+    // (conflict of interest).
+    // Used ONLY on single-document writes (submission update), never on a list-query read rule:
+    // "rules are not filters", so a get()-based per-document condition in a list read rule fails the whole query
+    // the moment it's false for any one matched doc, which is exactly how the reviewer queue broke.
+    // Reads stay permissive (role-based) and the conflict is hidden client-side instead.
     function reviewerConflicted(taskId) {
       let data = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       return "submittedTaskIds" in data && taskId in data.submittedTaskIds;
@@ -27,28 +26,39 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.auth.uid == userId
         && request.resource.data.role == "contributor";
+      // A user may update their own doc, but never escalate: `role` and `suspended` are the privilege/access vectors,
+      // so only admin/server may touch those. cycleCounts + submittedTaskIds stay self-writable
+      // because the submission transaction bumps them atomically client-side.
       allow update: if request.auth != null && (
         role() == "admin" ||
-        (request.auth.uid == userId && !("role" in request.resource.data.diff(resource.data).affectedKeys()))
+        (request.auth.uid == userId
+          && !("role" in request.resource.data.diff(resource.data).affectedKeys())
+          && !("suspended" in request.resource.data.diff(resource.data).affectedKeys()))
       );
     }
 
-    // Pending role pre-grants (admin "add user"). Applied server-side on wallet
-    // register/login via the Admin SDK, which bypasses these rules; client access
-    // is admin-only.
+    // Pending role pre-grants (admin "add user").
+    // Applied server-side on wallet register/login via the Admin SDK, which bypasses these rules;
+    // client access is admin-only.
     match /pendingGrants/{wallet} {
       allow read, create, update, delete: if request.auth != null && role() == "admin";
     }
 
-    // Feedback — any authenticated user may submit; only admins can read/manage.
+    // Feedback: any authenticated user may submit; only admins can read/manage.
     match /feedback/{feedbackId} {
       allow create: if request.auth != null;
       allow read, update, delete: if request.auth != null && role() == "admin";
     }
 
-    // Tasks collection — publicly readable; write restricted to admins, EXCEPT that
-    // any authenticated user may bump `submissionCount` by exactly 1 (done atomically
-    // when they create a submission) so the public per-task cap is visible + enforceable.
+    // Task suggestions: any authenticated user may propose one; only admins read/manage.
+    match /taskSuggestions/{suggestionId} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if request.auth != null && role() == "admin";
+    }
+
+    // Tasks collection: publicly readable; write restricted to admins, EXCEPT that any authenticated user may bump
+    // `submissionCount` by exactly 1 (done atomically when they create a submission)
+    // so the public per-task cap is visible + enforceable.
     match /tasks/{taskId} {
       allow read: if true;
       allow create, delete: if request.auth != null && role() == "admin";
@@ -61,43 +71,65 @@ service cloud.firestore {
           (
             // reviewers recount active (non-rejected) submissions authoritatively
             role() == "reviewer" ||
-            // contributors may only bump by 1 (atomic with creating a submission)
-            request.resource.data.submissionCount == resource.data.get("submissionCount", 0) + 1
+            // contributors bump by 1 (creating a submission) or drop by 1 (forfeit)
+            request.resource.data.submissionCount == resource.data.get("submissionCount", 0) + 1 ||
+            request.resource.data.submissionCount == resource.data.get("submissionCount", 0) - 1
           )
         ) ||
         (
-          // Claim Task / Start Work: a contributor may flip status through these
-          // two exact steps only, nothing else on the doc, no other transition.
+          // Claim Task / Start Work: a contributor may flip status through these two exact steps only,
+          // nothing else on the doc, no other transition.
           role() == "contributor" &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"]) &&
           (
             (resource.data.status == "open" && request.resource.data.status == "assigned") ||
             (resource.data.status == "assigned" && request.resource.data.status == "in_progress")
           )
+        ) ||
+        (
+          // Winner recommendation: the reviewer assigned to this task may write their written pick,
+          // nothing else on the doc. Single-doc write, so the get() this needs is already paid for by role().
+          role() == "reviewer" &&
+          resource.data.get("reviewerId", null) == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+            ["recommendedWinnerId", "winnerRecommendationNote", "winnerRecommendedAt", "winnerRecommendedBy"]
+          )
         )
       );
+
+      // Slot reservations (B6). A contributor claims a slot on a task for a few days
+      // so nobody beats them to it while they work.
+      // Each user owns exactly one claim doc, keyed by their uid: they may create/refresh/release only their own.
+      // Reads are public so remaining slots are visible to everyone.
+      // Single-doc writes keyed by uid, so this never gates a list-query read.
+      match /claims/{claimUid} {
+        allow read: if true;
+        allow create, update, delete: if request.auth != null && request.auth.uid == claimUid;
+      }
     }
 
     // Submissions collection
     match /submissions/{submissionId} {
-      // Contributors and reviewers may submit; admins never do (they have no
-      // contributor rights). A task that is completed or paused accepts no
-      // new submissions, enforced here, not just hidden in the UI.
+      // Contributors and reviewers may submit; admins never do (they have no contributor rights).
+      // A task that is completed or paused accepts no new submissions, enforced here, not just hidden in the UI.
       allow create: if request.auth != null
         && request.resource.data.contributorId == request.auth.uid
         && request.resource.data.status == "under_review"
         && role() != "admin"
-        && !(get(/databases/$(database)/documents/tasks/$(request.resource.data.taskId)).data.status in ["completed", "paused"]);
-      // Reads stay permissive/role-based (the proven form). Conflict of
-      // interest is enforced on writes below and hidden from the reviewer queue
-      // client-side; it must NOT gate this list-query read (see reviewerConflicted).
+        && !(get(/databases/$(database)/documents/tasks/$(request.resource.data.taskId)).data.status in ["completed", "paused"])
+        // Conflict of interest (B2): the reviewer assigned to a task cannot submit to it.
+        // Single-doc get() on create is safe here (not a list read).
+        && get(/databases/$(database)/documents/tasks/$(request.resource.data.taskId)).data.get("reviewerId", null) != request.auth.uid;
+      // Reads stay permissive/role-based (the proven form).
+      // Conflict of interest is enforced on writes below and hidden from the reviewer queue client-side;
+      // it must NOT gate this list-query read (see reviewerConflicted).
       allow read: if request.auth != null && (
         resource.data.contributorId == request.auth.uid ||
         role() in ["reviewer", "admin"]
       );
-      // Writes are single-document, so a get()-based conflict check is safe
-      // here: a conflicted reviewer cannot score or alter a submission for a
-      // task they submitted to. Admins are never conflicted.
+      // Writes are single-document, so a get()-based conflict check is safe here:
+      // a conflicted reviewer cannot score or alter a submission for a task they submitted to.
+      // Admins are never conflicted.
       allow update: if request.auth != null && (
         role() == "admin" ||
         (role() == "reviewer" && !reviewerConflicted(resource.data.taskId)) ||
@@ -105,12 +137,21 @@ service cloud.firestore {
           resource.data.contributorId == request.auth.uid &&
           resource.data.status == "revision_requested" &&
           request.resource.data.status == "under_review"
+        ) ||
+        (
+          // Forfeit: the owner may withdraw their own submission, but only while it is still awaiting a reviewer
+          // (no lock held, review not yet started).
+          resource.data.contributorId == request.auth.uid &&
+          resource.data.status == "under_review" &&
+          request.resource.data.status == "withdrawn" &&
+          resource.data.get("reviewingBy", null) == null &&
+          resource.data.get("reviewStartedNotified", false) == false
         )
       );
 
-      // Submission chat messages, role-based like the original (a conflicted
-      // reviewer is kept out of the chat by the detail page, which blocks them
-      // from opening the submission at all).
+      // Submission chat messages, role-based like the original
+      // (a conflicted reviewer is kept out of the chat by the detail page,
+      // which blocks them from opening the submission at all).
       match /messages/{messageId} {
         allow read: if request.auth != null && (
           get(/databases/$(database)/documents/submissions/$(submissionId)).data.contributorId == request.auth.uid ||
@@ -141,24 +182,39 @@ service cloud.firestore {
       );
     }
 
-    // Admin audit log — admins read/write only
+    // Appeals (rulebook 09). Doc id is the submission id, which enforces one appeal per submission for free.
+    // A contributor may only appeal their own submission, and only while filing it (status "open");
+    // single-doc get() on create is safe here, same reasoning as the submission create rule above.
+    // Only admins decide (update) or remove (delete) an appeal.
+    match /appeals/{submissionId} {
+      allow create: if request.auth != null
+        && submissionId == request.resource.data.submissionId
+        && request.resource.data.contributorId == request.auth.uid
+        && request.resource.data.status == "open"
+        && get(/databases/$(database)/documents/submissions/$(submissionId)).data.contributorId == request.auth.uid;
+      allow read: if request.auth != null && (
+        resource.data.contributorId == request.auth.uid ||
+        role() == "admin"
+      );
+      allow update, delete: if request.auth != null && role() == "admin";
+    }
+
+    // Admin audit log: admins read/write only
     match /adminAuditLog/{logId} {
       allow read, write: if request.auth != null && role() == "admin";
     }
 
-    // Global config singletons (e.g. the submission cycle counter). Readable
-    // by any authenticated user so the submit page can show the current
-    // cycle; only admins advance/rewind it. The board pause flag ("board") is
-    // world-readable so the maintenance gate resolves before/without login and
-    // the public ledger keeps working while the board is paused.
+    // Global config singletons (e.g. the submission cycle counter).
+    // Readable by any authenticated user so the submit page can show the current cycle; only admins advance/rewind it.
+    // The board pause flag ("board") is world-readable so the maintenance gate resolves before/without login
+    // and the public ledger keeps working while the board is paused.
     match /config/{configId} {
       allow read: if request.auth != null || configId == "board";
       allow write: if request.auth != null && role() == "admin";
     }
 
-    // Public transparency ledger. World-readable (the community-facing page at
-    // /ledger has no login), admin-writable. Holds only community-safe fields,
-    // never PII (identities/emails/wallets live only in submissions/users).
+    // Public transparency ledger. World-readable (the community-facing page at /ledger has no login), admin-writable.
+    // Holds only community-safe fields, never PII (identities/emails/wallets live only in submissions/users).
     match /ledger/{taskId} {
       allow read: if true;
       allow write: if request.auth != null && role() == "admin";

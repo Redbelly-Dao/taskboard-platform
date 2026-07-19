@@ -1,24 +1,25 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import Navbar from "@/components/Navbar";
+import Logo from "@/components/Logo";
+import ThemeToggle from "@/components/ThemeToggle";
 import { getLedgerStatusLabel } from "@/lib/ledger";
 
-// Themed pill colors, mirroring the admin ledger palette.
-const STATUS_COLOR: Record<string, string> = {
-  open: "bg-[#F4F5F7] text-[#555555]",
-  in_progress: "bg-[#EFF6FF] text-[#1D4ED8]",
-  in_review: "bg-[#EFF6FF] text-[#1D4ED8]",
-  revision: "bg-[#FEFCE8] text-[#A16207]",
-  approved: "bg-[#F0FDF4] text-[#15803D]",
-  awaiting_payment: "bg-[#FEF0EF] text-[#E63329]",
-  paid: "bg-[#F0FDF4] text-[#15803D]",
-  paused: "bg-[#F3F4F6] text-[#6B7280]",
-  rejected: "bg-[#FEF2F2] text-[#CC2820]",
+// Status is a dot plus a monospaced label, never a colour-filled pill.
+const STATUS_DOT: Record<string, string> = {
+  open: "bg-outline",
+  in_progress: "bg-warn",
+  in_review: "bg-tertiary",
+  revision: "bg-warn",
+  approved: "bg-ok",
+  awaiting_payment: "bg-primary",
+  paid: "bg-ok",
+  paused: "bg-outline",
+  rejected: "bg-error",
 };
 
 const rbntLine = (rbnt?: number | null, usd?: number | null) => {
@@ -51,70 +52,75 @@ export default function PublicLedgerPage() {
   }), [rows]);
 
   return (
-    <div className="min-h-screen bg-[#F4F5F7]">
-      {/* Signed-in users get the normal app nav; signed-out visitors get a
-          minimal public header with a sign-in affordance. The ledger itself is
-          viewable either way. */}
+    <div className="min-h-screen bg-background-deep">
+      {/* Signed-in users get the normal nav; signed-out visitors get a minimal public header with a sign-in affordance.
+          The ledger itself is viewable either way. */}
       {user ? (
         <Navbar />
       ) : (
-        <header className="page-header">
+        <header className="page-header sticky top-0 z-50">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <Image src="/dao-logo.png" alt="Redbelly DAO" height={32} width={47} className="object-contain" />
-              <span className="text-[#555555] text-sm font-medium">Task Board</span>
+              <Logo />
+              <span className="text-outline text-sm font-medium">Task Board</span>
             </div>
-            <Link href="/login" className="btn-ghost text-sm">Sign in</Link>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Link href="/login" className="btn-secondary text-xs">Sign in</Link>
+            </div>
           </div>
         </header>
       )}
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        <h1 className="text-2xl font-bold text-[#1A1A2E] mb-1">Public Transparency Ledger</h1>
-        <p className="text-sm text-[#555555] mb-6 max-w-2xl">
-          A community-facing audit trail of every Redbelly DAO Community Task Board task: its current status, the RBNT
-          payout committed, and a link to the final deliverable once complete. No contributor identities are shown.
+        <h1 className="text-2xl font-semibold text-on-surface mb-1">Public Transparency Ledger</h1>
+        <p className="text-sm text-outline mb-6 max-w-2xl leading-relaxed">
+          A community-facing audit trail of every completed Redbelly DAO Community Task Board task: its status, the RBNT
+          payout committed, and a link to the final deliverable. No contributor identities are shown.
         </p>
 
         {loading ? (
-          <div className="card p-12 text-center text-sm text-[#AAAAAA]">Loading ledger...</div>
+          <div className="card p-12 text-center text-sm text-outline">Loading ledger…</div>
         ) : rows.length === 0 ? (
-          <div className="card p-12 text-center text-sm text-[#AAAAAA]">The ledger has not been published yet. Check back soon.</div>
+          <div className="card p-12 text-center text-sm text-outline">The ledger has not been published yet. Check back soon.</div>
         ) : (
-          <div className="card overflow-hidden">
+          <div className="card card-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-xs text-[#888888] border-b border-[#E8EBF0]" style={{ backgroundColor: "#F4F5F7" }}>
-                    <th className="text-left px-4 py-3 font-semibold">Task ID</th>
-                    <th className="text-left px-4 py-3 font-semibold">Status</th>
-                    <th className="text-left px-4 py-3 font-semibold">RBNT Payout</th>
-                    <th className="text-left px-4 py-3 font-semibold">Deliverable</th>
+                  <tr className="card-rule">
+                    <th className="table-header text-left">Task</th>
+                    <th className="table-header text-left">Status</th>
+                    <th className="table-header text-left">RBNT payout</th>
+                    <th className="table-header text-left">Deliverable</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r, i) => (
-                    <tr key={r.id} className={`border-b border-[#F4F5F7] ${i % 2 === 1 ? "bg-[#F4F5F7]" : "bg-white"}`}>
-                      <td className="px-4 py-3 font-mono text-xs font-semibold text-[#1A1A2E]">
-                        {r.taskId}
-                        {r.title && <span className="block text-[10px] text-[#AAAAAA] font-sans font-normal max-w-[220px] truncate">{r.title}</span>}
+                    <tr key={r.id} className={i % 2 === 1 ? "row-alt" : ""}>
+                      <td className="px-4 py-3">
+                        <span className="mono text-xs font-semibold text-on-surface">{r.taskId}</span>
+                        {r.title && <span className="block text-[11px] text-outline max-w-[240px] truncate mt-0.5">{r.title}</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${STATUS_COLOR[r.status] || "bg-[#F4F5F7] text-[#555555]"}`}>{getLedgerStatusLabel(r.status)}</span>
-                        {r.publicNote && <span className="block text-[10px] text-[#AAAAAA] mt-0.5">{r.publicNote}</span>}
+                        <span className="inline-flex items-center gap-2 mono text-[11px] text-on-surface whitespace-nowrap">
+                          <span className={`w-1.5 h-1.5 rounded-full flex-none ${STATUS_DOT[r.status] || "bg-outline"}`} />
+                          {getLedgerStatusLabel(r.status)}
+                        </span>
+                        {r.publicNote && <span className="block text-[10px] text-outline mt-1">{r.publicNote}</span>}
                       </td>
-                      <td className="px-4 py-3 text-xs font-semibold text-[#1A1A2E]">{rbntLine(r.payoutRbnt, r.payoutUsd)}</td>
+                      <td className="px-4 py-3 mono text-xs font-semibold text-on-surface whitespace-nowrap">{rbntLine(r.payoutRbnt, r.payoutUsd)}</td>
                       <td className="px-4 py-3 text-xs">
                         {r.deliverableLink
-                          ? <a href={r.deliverableLink} target="_blank" rel="noopener noreferrer" className="text-[#E63329] font-semibold hover:underline break-all">View →</a>
-                          : <span className="text-[#AAAAAA]">-</span>}
+                          ? <a href={r.deliverableLink} target="_blank" rel="noopener noreferrer" className="text-primary font-semibold hover:underline">View →</a>
+                          : <span className="text-outline">-</span>}
                       </td>
                     </tr>
                   ))}
-                  <tr className="border-t border-[#E8EBF0]" style={{ backgroundColor: "#2C2C2C" }}>
-                    <td className="px-4 py-3 text-xs font-bold text-white" colSpan={2}>TOTAL COMMITTED</td>
-                    <td className="px-4 py-3 text-xs font-bold text-white">{rbntLine(totals.rbnt, totals.usd)}</td>
-                    <td className="px-4 py-3"></td>
+                  <tr className="border-t border-brand/40 bg-surface-container-lowest">
+                    <td className="px-4 py-3 mono text-[11px] font-bold text-outline uppercase tracking-widest" colSpan={2}>Total committed</td>
+                    <td className="px-4 py-3 mono text-sm font-bold text-primary whitespace-nowrap">{rbntLine(totals.rbnt, totals.usd)}</td>
+                    <td className="px-4 py-3" />
                   </tr>
                 </tbody>
               </table>
@@ -122,10 +128,10 @@ export default function PublicLedgerPage() {
           </div>
         )}
 
-        <p className="text-xs text-[#AAAAAA] mt-6">
+        <p className="text-xs text-outline mt-6 leading-relaxed">
           RBNT is paid at market price on the day of disbursement via the DAO High Council multi-sig. Payouts shown are the
           amounts committed per task. Deliverables are published to the{" "}
-          <a href="https://github.com/Redbelly-DAO-Community-Taskboard" target="_blank" rel="noopener noreferrer" className="text-[#E63329] hover:underline">community GitHub</a>.
+          <a href="https://github.com/Redbelly-DAO-Community-Taskboard" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">community GitHub</a>.
         </p>
       </div>
     </div>

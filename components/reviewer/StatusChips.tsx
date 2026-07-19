@@ -2,9 +2,9 @@
 import { getSubmissionStatusLabel, shortWallet } from "@/lib/tasks";
 
 // ONE mutually-exclusive state pill per submission (plus an "overridden" flag).
-// A submission is either decided (approved/rejected/revision), locked by someone
-// (in review / you), waiting on a hand-off, or free (awaiting review) - never a
-// contradictory mix like "awaiting review" + "in review" at once.
+// A submission is either decided (approved/rejected/revision), locked by someone (in review / you),
+// waiting on a hand-off, or free (awaiting review) - never a contradictory mix
+// like "awaiting review" + "in review" at once.
 export function StatusChips({
   sub,
   currentUserId,
@@ -21,7 +21,7 @@ export function StatusChips({
   if (sub.status !== "under_review") {
     chip = <span className={`badge-${sub.status} text-[10px]`}>{getSubmissionStatusLabel(sub.status)}</span>;
   } else if (lockedByMe) {
-    chip = <span className="badge bg-blue-50 text-blue-700 text-[10px]">You are reviewing</span>;
+    chip = <span className="badge bg-blue-50 text-info text-[10px]">You are reviewing</span>;
   } else if (lockedByOther) {
     const who = sub.reviewingByName || shortWallet(sub.reviewingByWallet);
     chip = (
@@ -36,13 +36,13 @@ export function StatusChips({
       </span>
     );
   } else {
-    chip = <span className="badge-under_review text-[10px]">Awaiting review</span>;
+    chip = <span className="badge-under_review text-[10px]">{getSubmissionStatusLabel(sub.status, sub.revisionCount)}</span>;
   }
 
   return (
     <div className="flex flex-wrap gap-1 justify-end">
       {chip}
-      {isAdmin && sub.adminOverride && <span className="badge bg-yellow-50 text-yellow-700 text-[10px]">overridden</span>}
+      {isAdmin && sub.adminOverride && <span className="badge bg-yellow-50 text-warn text-[10px]">overridden</span>}
     </div>
   );
 }

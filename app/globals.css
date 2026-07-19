@@ -1,31 +1,273 @@
 @import "tailwindcss";
 
-:root {
-  --accent: #E63329;
-  --accent-hover: #CC2820;
-  --accent-light: #FEF0EF;
-  --dark: #1A1A2E;
-  --charcoal: #2C2C2C;
-  --gray: #555555;
-  --border: #E8EBF0;
-  --row-alt: #F4F5F7;
-  --rule: #E8EBF0;
+/* ═══════════════════════════════════════════════════════════════
+   KINETIC CONSENSUS: design tokens (see DESIGN.md)
+
+   Colours are runtime CSS variables so the app can switch themes without a rebuild.
+   `@theme inline` makes Tailwind emit var(--x) rather than resolving the value at build time.
+   So every utility (bg-surface, text-on-surface, border-outline …) follows the theme.
+
+   Dark is the native/default scheme. Light is a derived counterpart that keeps the same brand and structure.
+   ═══════════════════════════════════════════════════════════════ */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-dim: var(--surface-dim);
+  --color-surface-bright: var(--surface-bright);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-surface-variant: var(--surface-variant);
+  --color-background: var(--background);
+  --color-background-deep: var(--background-deep);
+  --color-surface-slate: var(--surface-slate);
+
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-on-background: var(--on-surface);
+  --color-inverse-surface: var(--inverse-surface);
+  --color-inverse-on-surface: var(--inverse-on-surface);
+
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-inverse-primary: var(--inverse-primary);
+  --color-surface-tint: var(--primary);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+
+  --color-secondary: var(--secondary);
+  --color-on-secondary: var(--on-secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-on-secondary-container: var(--on-secondary-container);
+  --color-tertiary: var(--tertiary);
+  --color-on-tertiary: var(--on-tertiary);
+  --color-tertiary-container: var(--tertiary-container);
+  --color-on-tertiary-container: var(--on-tertiary-container);
+
+  --color-error: var(--error);
+  --color-on-error: var(--on-error);
+  --color-error-container: var(--error-container);
+  --color-on-error-container: var(--on-error-container);
+
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-info: var(--info);
+
+  /* Type */
+  --font-sans: var(--font-be-vietnam), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-be-vietnam), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  --text-headline-xl: 48px;
+  --text-headline-xl--line-height: 58px;
+  --text-headline-xl--font-weight: 700;
+  --text-headline-xl--letter-spacing: -0.01em;
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 42px;
+  --text-headline-lg--font-weight: 600;
+  --text-headline-lg--letter-spacing: -0.005em;
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 28px;
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-label-mono: 14px;
+  --text-label-mono--line-height: 20px;
+  --text-label-mono--letter-spacing: 0.05em;
+  --text-label-caps: 12px;
+  --text-label-caps--line-height: 16px;
+  --text-label-caps--font-weight: 700;
+  --text-label-caps--letter-spacing: 0.1em;
+
+  /* Airier reading rhythm: loosen the line-height on the everyday text sizes so dense screens breathe.
+     Tailwind applies these to text-xs/sm/base globally, so no component needs touching. */
+  --text-xs--line-height: 1.55;
+  --text-sm--line-height: 1.6;
+  --text-base--line-height: 1.65;
+  --text-lg--line-height: 1.6;
+  --text-xl--line-height: 1.45;
+  --text-2xl--line-height: 1.35;
+
+  /* Shape: soft yet structured. 4px base, no pills. */
+  --radius-sm: 0.125rem;
+  --radius-DEFAULT: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  --container-page: 1280px;
+}
+
+/* ── DARK (default / native scheme) ──────────────────── */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --surface: #0f181d;
+  --surface-dim: #0f181d;
+  --surface-bright: #323a3f;
+  --surface-container-lowest: #0a1216;
+  --surface-container-low: #161f24;
+  --surface-container: #1b252a;
+  --surface-container-high: #27323a;
+  --surface-container-highest: #313e46;
+  --surface-variant: #2d363b;
+  --background: #0f181d;
+  /* Lifted a touch off near-black: less heavy, cards separate more clearly. */
+  --background-deep: #121b20;
+  --surface-slate: #1e2a31;
+
+  --on-surface: #e4ebf0;
+  --on-surface-variant: #b8c4cc;
+  --inverse-surface: #dbe4ea;
+  --inverse-on-surface: #293236;
+
+  /* Cool slate neutrals for secondary text + lines.
+     The pack's pink-brown outline read muddy and heavy in dark; cool grey is lighter and airier. */
+  --outline: #93a4ae;
+  --outline-variant: #3a4650;
+
+  --primary: #ffb3ae;
+  --on-primary: #68000b;
+  --primary-container: #f95a56;
+  --on-primary-container: #5c0008;
+  --inverse-primary: #b3272a;
+
+  --brand: #EF5350;
+  --brand-hover: #f95a56;
+
+  --secondary: #b9c6eb;
+  --on-secondary: #23304d;
+  --secondary-container: #394665;
+  --on-secondary-container: #a7b5d9;
+  --tertiary: #b6c9d8;
+  --on-tertiary: #20333e;
+  --tertiary-container: #8093a1;
+  --on-tertiary-container: #1a2c37;
+
+  --error: #ffb4ab;
+  --on-error: #690005;
+  --error-container: #93000a;
+  --on-error-container: #ffdad6;
+
+  --ok: #86EFAC;
+  --warn: #FCD34D;
+  --info: #b9c6eb;
+
+  --accent-glow: rgba(239, 83, 80, 0.15);
+  --accent-aura: rgba(239, 83, 80, 0.2);
+  --input-border: #3F4C6B;
+  --card-sheen: rgba(255, 255, 255, 0.025);
+  --header-tint: 72%;
+  /* Dark logo art needs a plate to read against the deep background. */
+  --logo-plate: #ffffff;
+  --logo-plate-pad: 0.3rem 0.4rem;
+}
+
+/* ── LIGHT (derived counterpart, same brand) ─────────── */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --surface: #F6F7F8;
+  --surface-dim: #E8EBEE;
+  --surface-bright: #FFFFFF;
+  --surface-container-lowest: #FFFFFF;
+  --surface-container-low: #F2F4F5;
+  --surface-container: #ECEEF0;
+  --surface-container-high: #E3E6E9;
+  --surface-container-highest: #DADDE1;
+  --surface-variant: #E3E6E9;
+  --background: #F6F7F8;
+  --background-deep: #F6F7F8;
+  --surface-slate: #FFFFFF;
+
+  --on-surface: #16202A;
+  --on-surface-variant: #5c4340;
+  --inverse-surface: #293236;
+  --inverse-on-surface: #dbe4ea;
+
+  --outline: #6B7A85;
+  --outline-variant: #C9D1D6;
+
+  /* On light, the accent must darken to stay legible. */
+  --primary: #B3272A;
+  --on-primary: #ffffff;
+  --primary-container: #ffdad7;
+  --on-primary-container: #410004;
+  --inverse-primary: #ffb3ae;
+
+  --brand: #EF5350;
+  --brand-hover: #D93E3B;
+
+  --secondary: #394665;
+  --on-secondary: #ffffff;
+  --secondary-container: #d9e2ff;
+  --on-secondary-container: #0c1b37;
+  --tertiary: #374955;
+  --on-tertiary: #ffffff;
+  --tertiary-container: #d2e5f5;
+  --on-tertiary-container: #0a1d29;
+
+  --error: #B3261E;
+  --on-error: #ffffff;
+  --error-container: #ffdad6;
+  --on-error-container: #410002;
+
+  --ok: #15803D;
+  --warn: #A16207;
+  --info: #1D4ED8;
+
+  --accent-glow: rgba(239, 83, 80, 0.12);
+  --accent-aura: rgba(239, 83, 80, 0.18);
+  --input-border: #C9D1D6;
+  --card-sheen: rgba(0, 0, 0, 0.012);
+  --header-tint: 80%;
+  /* Light art on a light header: no plate needed. */
+  --logo-plate: transparent;
+  --logo-plate-pad: 0;
 }
 
 body {
-  background-color: #F4F5F7;
-  color: #1A1A2E;
-  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--background-deep);
+  color: var(--on-surface);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  letter-spacing: 0.005em;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* ── Buttons ─────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* ── Logo plate ──────────────────────────────────────
+   The DAO mark is dark-inked, so on the deep background it is near-invisible.
+   Give it a plate in dark, nothing in light. */
+.logo-plate {
+  background-color: var(--logo-plate);
+  padding: var(--logo-plate-pad);
+  border-radius: var(--radius-DEFAULT);
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+
+/* ── Buttons ─────────────────────────────────────────
+   Architectural, not toy-like: 4px radius, never pills. */
 .btn-primary {
-  background-color: #E63329;
-  color: white;
+  background-color: var(--brand);
+  color: #ffffff;
   font-weight: 600;
   padding: 0.625rem 1.25rem;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-DEFAULT);
   font-size: 0.875rem;
   transition: background-color 0.15s, box-shadow 0.15s;
   display: inline-flex;
@@ -35,28 +277,58 @@ body {
   border: none;
   white-space: nowrap;
 }
-.btn-primary:hover { background-color: #CC2820; box-shadow: 0 2px 8px rgba(230,51,41,0.28); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.btn-primary:hover {
+  background-color: var(--brand-hover);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 
 .btn-secondary {
-  background-color: white;
-  color: #1A1A2E;
+  background-color: transparent;
+  color: var(--on-surface);
   font-weight: 600;
   padding: 0.625rem 1.25rem;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-DEFAULT);
   font-size: 0.875rem;
-  border: 1px solid #E5E5E5;
-  transition: background-color 0.15s, border-color 0.15s;
+  border: 1px solid var(--outline-variant);
+  transition: border-color 0.15s, box-shadow 0.15s;
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
   cursor: pointer;
   white-space: nowrap;
 }
-.btn-secondary:hover { background-color: #F4F5F7; border-color: #CCCCCC; }
+.btn-secondary:hover {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+/* Brand-outlined action (e.g. admin Override): same geometry as other buttons, lining up beside View / Start review. */
+.btn-outline {
+  background-color: transparent;
+  color: var(--primary);
+  font-weight: 600;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-DEFAULT);
+  font-size: 0.875rem;
+  border: 1px solid var(--brand);
+  transition: background-color 0.15s, box-shadow 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-outline:hover {
+  background-color: var(--surface-container-low);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.btn-outline:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 
 .btn-ghost {
-  color: #555555;
+  color: var(--on-surface);
   font-weight: 500;
   font-size: 0.875rem;
   transition: color 0.15s;
@@ -66,99 +338,172 @@ body {
   text-decoration: none;
   padding: 0;
 }
-.btn-ghost:hover { color: #E63329; }
+.btn-ghost:hover { color: var(--primary); }
 
-/* ── Card ────────────────────────────────────────── */
+/* ── Card ────────────────────────────────────────────
+   Depth via tonal elevation + 1px edge, never drop shadows. */
 .card {
-  background-color: white;
-  border-radius: 0.75rem;
-  border: 1px solid #E8EBF0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
-  transition: box-shadow 0.15s, border-color 0.15s;
+  background-color: var(--surface-slate);
+  background-image: linear-gradient(180deg, var(--card-sheen), transparent 60%);
+  border-radius: var(--radius-DEFAULT);
+  border: 1px solid var(--surface-container-high);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
+.card-lg { border-radius: var(--radius-lg); }
+.card-active {
+  border-color: var(--accent-aura);
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+.card-rule { border-bottom: 1px solid var(--surface-container-high); }
 
-/* ── Input ───────────────────────────────────────── */
+/* ── Input ───────────────────────────────────────────── */
 .input {
   width: 100%;
   padding: 0.625rem 0.875rem;
   font-size: 0.875rem;
-  border: 1px solid #E5E5E5;
-  border-radius: 0.4rem;
-  background-color: white;
-  color: #1A1A2E;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-DEFAULT);
+  background-color: var(--surface-container-lowest);
+  color: var(--on-surface);
   transition: border-color 0.15s, box-shadow 0.15s;
   outline: none;
 }
-.input::placeholder { color: #AAAAAA; }
-.input:focus { border-color: #E63329; box-shadow: 0 0 0 3px rgba(230,51,41,0.08); }
+.input::placeholder { color: var(--outline); }
+.input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--accent-aura);
+}
+.input:focus-visible { outline: none; }
 
-/* ── Label ───────────────────────────────────────── */
+/* ── Label ───────────────────────────────────────────── */
 .label {
   display: block;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
   font-weight: 700;
-  color: #888888;
+  color: var(--outline);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   margin-bottom: 0.375rem;
 }
 
-/* ── Badges ──────────────────────────────────────── */
-.badge { display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.01em; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-.badge-developer       { background: #EFF6FF; color: #1D4ED8; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-design          { background: #F5F3FF; color: #6D28D9; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-research        { background: #F0FDF4; color: #15803D; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-documentation   { background: #FEFCE8; color: #A16207; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-content         { background: #FDF2F8; color: #9D174D; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-open            { background: #FEF0EF; color: #E63329; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-assigned        { background: #EFF6FF; color: #1D4ED8; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-in_progress     { background: #FEFCE8; color: #A16207; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-under_review    { background: #F5F3FF; color: #6D28D9; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-completed       { background: #F0FDF4; color: #15803D; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-paused          { background: #F3F4F6; color: #6B7280; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-approved        { background: #F0FDF4; color: #15803D; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-revision_requested { background: #FEFCE8; color: #A16207; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-.badge-rejected        { background: #FEF2F2; color: #DC2626; display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-
-/* ── Navbar ──────────────────────────────────────── */
-.page-header {
-  border-bottom: 1px solid #E8EBF0;
-  background-color: white;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+/* ── Status chips ────────────────────────────────────
+   DESIGN.md: a small circular dot next to a monospaced label, NOT a colour-filled pill.
+   Every legacy .badge-* maps here, so existing markup gets the new treatment with no JSX changes. */
+.badge,
+[class*="badge-"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--on-surface);
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  white-space: nowrap;
+}
+[class*="badge-"]::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  flex: none;
+  background: var(--outline);
 }
 
-/* ── Section bar ─────────────────────────────────── */
+.badge-developer::before     { background: var(--secondary); }
+.badge-design::before        { background: #8B5CF6; }
+.badge-research::before      { background: var(--ok); }
+.badge-documentation::before { background: var(--warn); }
+.badge-content::before       { background: #DB2777; }
+
+.badge-open::before        { background: var(--brand); }
+.badge-assigned::before    { background: var(--secondary); }
+.badge-in_progress::before { background: var(--warn); }
+.badge-under_review::before{ background: var(--tertiary); }
+.badge-completed::before   { background: var(--ok); }
+.badge-paused::before      { background: var(--outline); }
+
+.badge-approved::before          { background: var(--ok); }
+.badge-revision_requested::before{ background: var(--warn); }
+.badge-rejected::before          { background: var(--error); }
+.badge-withdrawn::before         { background: var(--outline); }
+
+/* Appeal status (open reuses .badge-open's brand dot above). */
+.badge-upheld::before      { background: var(--outline); }
+.badge-overturned::before  { background: var(--ok); }
+
+/* ── Navbar / overlays ───────────────────────────────
+   Glass: backdrop-blur over a semi-transparent fill, so the data underneath stays in context. */
+.page-header {
+  border-bottom: 1px solid var(--surface-container-high);
+  background-color: color-mix(in srgb, var(--background-deep) var(--header-tint), transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.glass {
+  background-color: color-mix(in srgb, var(--surface-slate) 88%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--surface-container-high);
+}
+
+/* ── Section bar ─────────────────────────────────────── */
 .section-bar {
-  background-color: #E63329;
-  color: white;
+  background-color: var(--brand);
+  color: #ffffff;
+  font-family: var(--font-mono);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 0.875rem;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
   padding: 0.625rem 1rem;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-DEFAULT);
 }
 
-/* ── Table header ────────────────────────────────── */
+/* ── Tables ──────────────────────────────────────────
+   High density. Alternating row fills, no vertical grid lines. */
 .table-header {
-  background-color: #2C2C2C;
-  color: white;
+  background-color: var(--surface-container-lowest);
+  color: var(--outline);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
   padding: 0.75rem 1rem;
 }
+.row-alt { background-color: var(--surface-container-low); }
 
-/* ── Skeleton loader ─────────────────────────────── */
+/* ── Skeleton loader ─────────────────────────────────── */
 @keyframes shimmer {
   0%   { background-position: -600px 0; }
   100% { background-position:  600px 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, #EBEBEB 25%, #DEDEDE 50%, #EBEBEB 75%);
+  background: linear-gradient(
+    90deg,
+    var(--surface-container) 25%,
+    var(--surface-container-high) 50%,
+    var(--surface-container) 75%
+  );
   background-size: 1200px 100%;
   animation: shimmer 1.5s ease-in-out infinite;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-DEFAULT);
 }
 
-/* ── Spinner ─────────────────────────────────────── */
+/* ── Spinner ─────────────────────────────────────────── */
 @keyframes spin { to { transform: rotate(360deg); } }
 .animate-spin { animation: spin 0.8s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

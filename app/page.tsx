@@ -16,10 +16,10 @@ export default function Home() {
   }, [user, appUser, loading, router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center bg-background-deep">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-2 border-[#E63329] border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-[#555555]">Loading...</p>
+        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-outline">Loading…</p>
       </div>
     </div>
   );

@@ -1,8 +1,8 @@
 import { Task } from "./tasks";
 
-// Ledger status vocabulary: the "redo" that reflects how the board actually
-// runs, auto-derived from a task's status plus its submissions. The admin can
-// override it per task (ledger.status); otherwise this derived value shows.
+// Ledger status vocabulary: the "redo" that reflects how the board actually runs,
+// auto-derived from a task's status plus its submissions.
+// The admin can override it per task (ledger.status); otherwise this derived value shows.
 export type LedgerStatus =
   | "open"
   | "in_progress"
@@ -31,10 +31,9 @@ export const getLedgerStatusLabel = (s: LedgerStatus | string): string => ({
   rejected: "Rejected",
 }[s as LedgerStatus] ?? String(s).replace(/_/g, " "));
 
-// The single payable submission for a task: the highest reviewTotalScore among
-// approved submissions. A tie (multiple approved subs share the top score) is
-// resolved by the admin-set `paymentWinner` flag; until then it's unresolved.
-// Mirrors the payment gating shipped in the admin Payments work.
+// The single payable submission for a task: the highest reviewTotalScore among approved submissions.
+// A tie (multiple approved subs share the top score) is resolved by the admin-set `paymentWinner` flag;
+// until then it's unresolved. Mirrors the payment gating shipped in the admin Payments work.
 export function pickWinner(subsForTask: any[]): { winner: any | null; tie: boolean } {
   const approved = subsForTask.filter((s) => s.status === "approved");
   if (approved.length === 0) return { winner: null, tie: false };
@@ -68,10 +67,9 @@ export function deriveLedgerStatus(task: Task, subsForTask: any[]): LedgerStatus
 export const deliverableLinkOf = (s: any): string =>
   (s?.githubLink || s?.liveLink || s?.publishedLink || s?.fileUrl || "").trim();
 
-// Build the community-safe projection written to ledger/{taskId}. Never
-// includes identities/wallets/emails. Admin overrides on the existing ledger
-// doc (status, deliverableLink, payout, note, tx hash, dates) win over derived
-// defaults.
+// Build the community-safe projection written to ledger/{taskId}. Never includes identities/wallets/emails.
+// Admin overrides on the existing ledger doc
+// (status, deliverableLink, payout, note, tx hash, dates) win over derived defaults.
 export function ledgerProjection(task: Task, subsForTask: any[], existing: any = {}) {
   const { winner } = pickWinner(subsForTask);
   const derivedStatus = deriveLedgerStatus(task, subsForTask);
@@ -83,6 +81,10 @@ export function ledgerProjection(task: Task, subsForTask: any[], existing: any =
     taskStatus: task.status, // real task lifecycle status; only "completed" tasks belong on the ledger
 
     cycle: winner?.cycle ?? existing.cycle ?? null,
+    // Opaque submission id only, never the contributor's identity.
+    // Lets a contributor's own task page (which cannot list other submissions under the rules) work out
+    // whether a different submission won, for the winner-selection appeal (rulebook 09).
+    winnerSubmissionId: winner?.id ?? existing.winnerSubmissionId ?? null,
     status: existing.statusOverride || derivedStatus,
     payoutRbnt: existing.payoutRbnt ?? task.rewardRbnt ?? null,
     payoutUsd: existing.payoutUsd ?? task.reward ?? null,

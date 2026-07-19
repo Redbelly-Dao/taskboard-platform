@@ -3,10 +3,10 @@ import * as fs from 'fs';
 import { resolve } from 'path';
 import dns from 'node:dns';
 
-// Force IPv4-first DNS resolution. Some environments (notably WSL2) resolve
-// oauth2.googleapis.com to an IPv6 address that Node tries first and hangs on,
-// causing the Admin SDK token fetch to fail with "request to
-// https://oauth2.googleapis.com/token failed, reason:" (an ETIMEDOUT).
+// Force IPv4-first DNS resolution.
+// Some environments (notably WSL2) resolve oauth2.googleapis.com to an IPv6 address that Node tries first and hangs on,
+// causing the Admin SDK token fetch to fail with
+// "request to https://oauth2.googleapis.com/token failed, reason:" (an ETIMEDOUT).
 dns.setDefaultResultOrder('ipv4first');
 
 let adminApp: admin.app.App | null = null;

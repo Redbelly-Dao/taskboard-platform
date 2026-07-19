@@ -23,9 +23,8 @@ export function useWalletConnectors() {
   const { switchChainAsync } = useSwitchChain();
   const { isConnected } = useAccount();
 
-  // EIP-6963 discovery plus the fallback injected() connector can produce a
-  // duplicate generic "Injected" entry. Hide it when named wallets exist, then
-  // dedupe by display name.
+  // EIP-6963 discovery plus the fallback injected() connector can produce a duplicate generic "Injected" entry.
+  // Hide it when named wallets exist, then dedupe by display name.
   const named = connectors.filter((c) => c.name !== "Injected");
   const base = named.length > 0 ? named : connectors;
   const seen = new Set<string>();
@@ -37,8 +36,7 @@ export function useWalletConnectors() {
   });
 
   const connectAndSign = async (connector: Connector): Promise<WalletAuthResult> => {
-    // Start clean so re-connecting the same wallet never throws
-    // "connector already connected".
+    // Start clean so re-connecting the same wallet never throws "connector already connected".
     if (isConnected) {
       try {
         await disconnectAsync();

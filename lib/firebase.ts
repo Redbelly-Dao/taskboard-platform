@@ -11,8 +11,8 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Guard against SSR pre-rendering without credentials: Firebase auth
-// validates the API key on initialization and throws at build time otherwise.
+// Guard against SSR pre-rendering without credentials:
+// Firebase auth validates the API key on initialization and throws at build time otherwise.
 const hasConfig = Boolean(firebaseConfig.apiKey);
 
 let app: FirebaseApp | undefined;
@@ -23,8 +23,8 @@ if (hasConfig) {
   const isNewApp = getApps().length === 0;
   app = isNewApp ? initializeApp(firebaseConfig) : getApps()[0];
   auth = getAuth(app);
-  // ignoreUndefinedProperties lets writes omit `undefined` fields instead of
-  // throwing (e.g. optional username/discordHandle on pre-grant and profile saves).
+  // ignoreUndefinedProperties lets writes omit `undefined` fields instead of throwing
+  // (e.g. optional username/discordHandle on pre-grant and profile saves).
   // initializeFirestore can only run once per app, so reuse the instance otherwise.
   db = isNewApp
     ? initializeFirestore(app, { ignoreUndefinedProperties: true })

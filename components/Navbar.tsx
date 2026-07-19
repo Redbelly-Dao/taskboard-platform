@@ -1,14 +1,25 @@
 "use client";
 import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   collection, query, where, onSnapshot,
   updateDoc, doc, arrayUnion, limit, addDoc, serverTimestamp,
 } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
+import Logo from "@/components/Logo";
+import ThemeToggle from "@/components/ThemeToggle";
+import Modal from "@/components/ui/Modal";
+
+// Simple user avatar, so the profile chip reads as a person rather than a bare box.
+function AvatarIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z" />
+    </svg>
+  );
+}
 
 function timeAgo(seconds: number): string {
   const diff = Math.floor(Date.now() / 1000) - seconds;
@@ -18,13 +29,42 @@ function timeAgo(seconds: number): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+type NavLink = { href: string; label: string };
+
+// One source of truth for a role's links, so the desktop bar and the mobile drawer can never drift apart.
+function linksFor(role?: string): NavLink[] {
+  const links: NavLink[] = [{ href: "/dashboard", label: "Dashboard" }];
+  if (role === "admin") {
+    links.push(
+      { href: "/admin", label: "Admin" },
+      { href: "/reviewer", label: "Reviews" },
+      { href: "/ledger", label: "Ledger" },
+    );
+  } else if (role === "reviewer") {
+    links.push(
+      { href: "/reviewer", label: "Reviews" },
+      { href: "/submissions", label: "My Submissions" },
+      { href: "/ledger", label: "Ledger" },
+    );
+  } else if (role === "contributor") {
+    links.push(
+      { href: "/submissions", label: "My Submissions" },
+      { href: "/ledger", label: "Ledger" },
+    );
+  }
+  return links;
+}
+
 export default function Navbar() {
   const { user, appUser, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   const [personalNotifs, setPersonalNotifs] = useState<any[]>([]);
   const [broadcastNotifs, setBroadcastNotifs] = useState<any[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,6 +109,9 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Close the drawer on navigation, otherwise it hangs over the new page.
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
+
   const allNotifs = [...personalNotifs, ...broadcastNotifs].sort(
     (a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)
   );
@@ -92,10 +135,6 @@ export default function Navbar() {
   const handleNotifClick = (notif: any) => {
     markRead(notif);
     setShowDropdown(false);
-    // Contributors: /tasks/[taskId] is a real route and already shows their
-    // own submission, decision, and revision history, so go straight there.
-    // Reviewers/admins: /reviewer/[submissionId] is a real route too, so this
-    // is a plain navigation, no query param, no one-shot open-then-strip logic.
     if (appUser?.role === "admin" || appUser?.role === "reviewer") {
       if (notif.submissionId) router.push(`/reviewer/${notif.submissionId}`);
       else router.push("/reviewer");
@@ -115,111 +154,106 @@ export default function Navbar() {
     appUser?.role === "admin" ? "/admin" :
     appUser?.role === "reviewer" ? "/reviewer" : "/dashboard";
 
-  return (
-    <nav className="page-header sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-        {/* Logo */}
-        <Link href={dashboardHref} className="flex items-center gap-2.5 flex-shrink-0">
-          <Image src="/dao-logo.png" alt="Redbelly DAO" height={32} width={47} className="object-contain" />
-          <span className="text-[#555555] text-sm font-medium hidden sm:block">Task Board</span>
-        </Link>
+  const navLinks = linksFor(appUser?.role);
 
-        {/* Right side */}
-        <div className="flex items-center gap-4">
+  return (
+    <>
+      <nav className="page-header sticky top-0 z-50">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+          {/* Logo */}
+          <Link href={dashboardHref} className="flex items-center gap-2.5 flex-shrink-0">
+            <Logo />
+          </Link>
+
+          {/* Desktop links */}
           {appUser && (
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard" className="btn-ghost text-sm">Dashboard</Link>
-              {appUser.role === "admin" && (
-                <>
-                  <Link href="/admin" className="btn-ghost text-sm hidden sm:block">Admin</Link>
-                  <Link href="/reviewer" className="btn-ghost text-sm hidden sm:block">Reviews</Link>
-                  <Link href="/ledger" className="btn-ghost text-sm hidden sm:block">Ledger</Link>
-                </>
-              )}
-              {appUser.role === "reviewer" && (
-                <>
-                  <Link href="/reviewer" className="btn-ghost text-sm hidden sm:block">Reviews</Link>
-                  <Link href="/submissions" className="btn-ghost text-sm hidden sm:block">My Submissions</Link>
-                </>
-              )}
-              {appUser.role === "contributor" && (
-                <Link href="/submissions" className="btn-ghost text-sm hidden sm:block">My Submissions</Link>
-              )}
+            <div className="hidden md:flex items-center gap-5 flex-1">
+              {navLinks.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className={`text-sm transition-colors ${
+                    pathname === l.href ? "text-primary font-semibold" : "text-on-surface hover:text-primary"
+                  }`}
+                >
+                  {l.label}
+                </Link>
+              ))}
             </div>
           )}
 
+          {/* Right cluster */}
           {user && (
-            <div className="flex items-center gap-3 pl-3 border-l border-[#E8EBF0]">
-              {/* Notification Bell */}
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+
+              {/* Notification bell */}
               {appUser && (
                 <div className="relative" ref={dropdownRef}>
                   <button
                     onClick={() => setShowDropdown((v) => !v)}
-                    className="relative p-1.5 rounded-lg hover:bg-[#F4F5F7] transition-colors"
+                    className="relative p-1.5 rounded hover:bg-surface-container-high transition-colors"
                     aria-label="Notifications"
                   >
-                    <svg className="w-5 h-5 text-[#555555]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <svg className="w-5 h-5 text-on-surface" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
                     {unread.length > 0 && (
-                      <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#E63329] text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                      <span className="mono absolute -top-0.5 -right-0.5 min-w-4 h-4 px-0.5 bg-brand text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
                         {unread.length > 9 ? "9+" : unread.length}
                       </span>
                     )}
                   </button>
 
                   {showDropdown && (
-                    <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-[#E8EBF0] rounded-xl shadow-2xl overflow-hidden z-[100]">
-                      <div className="px-4 py-3 border-b border-[#E8EBF0] flex items-center justify-between">
-                        <p className="font-semibold text-sm text-[#1A1A2E]">
+                    <div className="glass absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] rounded overflow-hidden z-[100]">
+                      <div className="px-4 py-3 card-rule flex items-center justify-between">
+                        <p className="font-semibold text-sm text-on-surface">
                           Notifications
                           {unread.length > 0 && (
-                            <span className="ml-2 bg-[#E63329] text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                            <span className="mono ml-2 bg-brand text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
                               {unread.length}
                             </span>
                           )}
                         </p>
                         {unread.length > 0 && (
-                          <button onClick={markAllRead} className="text-xs text-[#E63329] font-semibold hover:underline">
+                          <button onClick={markAllRead} className="text-xs text-primary font-semibold hover:underline">
                             Mark all read
                           </button>
                         )}
                       </div>
 
-                      <div className="max-h-80 overflow-y-auto divide-y divide-[#F4F5F7]">
+                      <div className="max-h-80 overflow-y-auto">
                         {unread.length === 0 ? (
                           <div className="px-4 py-8 text-center">
-                            <svg className="w-8 h-8 text-[#DDDDDD] mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                            </svg>
-                            <p className="text-sm text-[#AAAAAA]">You're all caught up.</p>
+                            <p className="text-sm text-outline">You are all caught up.</p>
                           </div>
                         ) : (
                           unread.slice(0, 15).map((notif) => (
                             <button
                               key={notif.id}
                               onClick={() => handleNotifClick(notif)}
-                              className="w-full text-left px-4 py-3 hover:bg-[#FEF0EF] transition-colors"
+                              className="w-full text-left px-4 py-3 hover:bg-surface-container-high transition-colors border-b border-surface-container-high last:border-0"
                             >
                               <div className="flex items-start gap-2.5">
                                 <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                                  notif.senderRole === "admin" ? "bg-[#E63329]" :
-                                  notif.senderRole === "reviewer" ? "bg-blue-500" :
-                                  "bg-[#888888]"
+                                  notif.senderRole === "admin" ? "bg-brand" :
+                                  notif.senderRole === "reviewer" ? "bg-secondary" :
+                                  "bg-outline"
                                 }`} />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold text-[#1A1A2E] truncate">
-                                    {notif.taskId}
+                                  <p className="text-xs font-semibold text-on-surface truncate">
+                                    <span className="mono">{notif.taskId}</span>
                                     {notif.taskTitle && (
-                                      <span className="font-normal text-[#888888]"> · {notif.taskTitle}</span>
+                                      <span className="font-normal text-outline"> · {notif.taskTitle}</span>
                                     )}
                                   </p>
-                                  <p className="text-xs text-[#555555] mt-0.5">
-                                    <span className="capitalize font-medium">{notif.senderRole}</span>
+                                  <p className="text-xs text-outline mt-0.5">
+                                    <span className="capitalize font-medium text-on-surface">{notif.senderRole}</span>
                                     {": "}
-                                    <span className="text-[#888888] italic">{notif.messagePreview}</span>
+                                    <span className="italic">{notif.messagePreview}</span>
                                   </p>
-                                  <p className="text-[10px] text-[#AAAAAA] mt-1">
+                                  <p className="mono text-[10px] text-outline mt-1">
                                     {notif.createdAt?.seconds ? timeAgo(notif.createdAt.seconds) : "recently"}
                                   </p>
                                 </div>
@@ -233,40 +267,174 @@ export default function Navbar() {
                 </div>
               )}
 
+              {/* Profile chip */}
               {appUser && (
-                <div className="bg-[#F4F5F7] border border-[#E8EBF0] rounded-lg px-3 py-1.5">
-                  <Link href="/profile" className="text-xs font-semibold text-[#1A1A2E] leading-tight hover:text-[#E63329]">
-                    {appUser.username || `${appUser.walletAddress.slice(0, 6)}…${appUser.walletAddress.slice(-4)}`}
-                  </Link>
-                  <p className="text-[10px] text-[#E63329] capitalize font-bold leading-tight">{appUser.role}</p>
-                </div>
+                <Link
+                  href="/profile"
+                  className="hidden sm:flex items-center gap-2 border border-outline-variant rounded px-2.5 py-1.5 hover:border-brand transition-colors"
+                >
+                  <span className="w-7 h-7 rounded-full bg-surface-container-high flex items-center justify-center text-primary flex-shrink-0">
+                    <AvatarIcon className="w-4 h-4" />
+                  </span>
+                  <span className="leading-tight">
+                    <span className="block text-xs font-semibold text-on-surface">
+                      {appUser.username || `${appUser.walletAddress.slice(0, 6)}…${appUser.walletAddress.slice(-4)}`}
+                    </span>
+                    <span className="block mono text-[10px] text-primary uppercase font-bold">{appUser.role}</span>
+                  </span>
+                </Link>
               )}
 
-              {/* Feedback mechanism - beautiful matching UI */}
+              {/* Desktop-only actions */}
+              <div className="hidden md:flex items-center gap-3 pl-3 border-l border-surface-container-high">
+                <button onClick={() => setFeedbackOpen(true)} className="btn-ghost text-xs">Feedback</button>
+                <button onClick={handleLogout} className="btn-ghost text-xs">Sign out</button>
+              </div>
+
+              {/* Hamburger: below md this is the only way to reach /admin,
+                  /reviewer, /ledger and /submissions. */}
               <button
-                onClick={async () => {
-                  const type = prompt("Type (bug / suggestion / other):", "suggestion");
-                  const msg = prompt("Your feedback:");
-                  if (msg && appUser) {
-                    await addDoc(collection(db, "feedback"), {
-                      from: appUser.walletAddress,
-                      username: appUser.username || null,
-                      type: type || "other",
-                      message: msg,
-                      createdAt: serverTimestamp(),
-                    });
-                    alert("Thanks for the feedback!");
-                  }
-                }}
-                className="btn-ghost text-xs"
+                onClick={() => setMenuOpen(true)}
+                className="md:hidden p-1.5 rounded hover:bg-surface-container-high transition-colors"
+                aria-label="Open menu"
+                aria-expanded={menuOpen}
               >
-                Feedback
+                <svg className="w-6 h-6 text-on-surface" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
               </button>
-              <button onClick={handleLogout} className="btn-ghost text-xs">Sign out</button>
             </div>
           )}
         </div>
-      </div>
-    </nav>
+      </nav>
+
+      {/* Mobile drawer */}
+      {menuOpen && (
+        <div className="md:hidden fixed inset-0 z-[110] flex">
+          <button className="flex-1 bg-black/60" onClick={() => setMenuOpen(false)} aria-label="Close menu" />
+          <div className="glass w-72 max-w-[80vw] h-full flex flex-col">
+            <div className="h-14 px-4 flex items-center justify-between card-rule">
+              <span className="label mb-0">Menu</span>
+              <button onClick={() => setMenuOpen(false)} aria-label="Close menu" className="p-1 text-on-surface hover:text-primary">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {appUser && (
+              <Link href="/profile" className="px-4 py-3 card-rule hover:bg-surface-container-high transition-colors flex items-center gap-3">
+                <span className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center text-primary flex-shrink-0">
+                  <AvatarIcon className="w-5 h-5" />
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold text-on-surface">
+                    {appUser.username || `${appUser.walletAddress.slice(0, 6)}…${appUser.walletAddress.slice(-4)}`}
+                  </span>
+                  <span className="block mono text-[10px] text-primary uppercase font-bold mt-0.5">{appUser.role}</span>
+                </span>
+              </Link>
+            )}
+
+            <div className="flex-1 overflow-y-auto py-2">
+              {navLinks.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className={`block px-4 py-3 text-sm transition-colors ${
+                    pathname === l.href
+                      ? "text-primary font-semibold bg-surface-container-high"
+                      : "text-on-surface hover:bg-surface-container-high"
+                  }`}
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+
+            <div className="p-4 border-t border-surface-container-high flex flex-col gap-2">
+              <button onClick={() => { setMenuOpen(false); setFeedbackOpen(true); }} className="btn-secondary text-xs justify-center">
+                Send feedback
+              </button>
+              <button onClick={handleLogout} className="btn-ghost text-xs py-2">Sign out</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
+    </>
+  );
+}
+
+// General product feedback: bugs, ideas, anything not working. Tracked in the admin Feedback tab.
+function FeedbackModal({ onClose }: { onClose: () => void }) {
+  const { appUser } = useAuth();
+  const [type, setType] = useState("bug");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const send = async () => {
+    if (!message.trim() || !appUser) return;
+    setSending(true);
+    try {
+      await addDoc(collection(db, "feedback"), {
+        from: appUser.walletAddress,
+        username: appUser.username || null,
+        type,
+        message: message.trim(),
+        createdAt: serverTimestamp(),
+      });
+      setSent(true);
+      setTimeout(onClose, 1200);
+    } catch {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} title="Send feedback">
+      {sent ? (
+        <p className="text-sm text-on-surface text-center py-4">Thanks. Feedback received.</p>
+      ) : (
+        <>
+          <p className="text-xs text-outline mb-4">Bugs, ideas, anything that is not working for you.</p>
+
+          <span className="label">Type</span>
+          <div className="flex gap-2 mb-4">
+            {["bug", "idea", "other"].map((t) => (
+              <button
+                key={t}
+                onClick={() => setType(t)}
+                className={`px-3 py-1.5 rounded text-xs font-semibold capitalize transition-colors ${
+                  type === t ? "bg-brand text-white" : "border border-outline-variant text-on-surface hover:border-brand"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
+          <label className="label" htmlFor="feedback-msg">Message</label>
+          <textarea
+            id="feedback-msg"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={5}
+            className="input resize-none"
+            placeholder="What happened, and what did you expect?"
+            autoFocus
+          />
+
+          <div className="flex justify-end gap-2 mt-4 mb-2">
+            <button onClick={onClose} className="btn-secondary text-xs">Cancel</button>
+            <button onClick={send} disabled={!message.trim() || sending} className="btn-primary text-xs">
+              {sending ? "Sending…" : "Send feedback"}
+            </button>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }

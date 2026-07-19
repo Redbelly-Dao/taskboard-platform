@@ -43,8 +43,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// We use wallet address as the "email" in Firebase Auth
-// by appending a domain to make it a valid email format
+// We use wallet address as the "email" in Firebase Auth by appending a domain to make it a valid email format
 const walletToEmail = (wallet: string) =>
   `${wallet.toLowerCase()}@redbelly-taskboard.dao`;
 
@@ -64,8 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setAppUser(snap.data() as AppUser);
           }
         } catch (err) {
-          // Firestore unreachable (e.g. ad-blocker on localhost). Auth still
-          // works: the user is logged in but appUser stays null until reload.
+          // Firestore unreachable (e.g. ad-blocker on localhost).
+          // Auth still works: the user is logged in but appUser stays null until reload.
           console.warn("Could not load user profile from Firestore:", err);
         }
       } else {
@@ -115,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await fetch("/api/wallet-auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wallet: walletAddress, message, signature, isRegister: true }),
+      body: JSON.stringify({ wallet: walletAddress, message, signature, isRegister: true, discordHandle, username }),
     });
     const data = await res.json();
     if (!res.ok || !data.customToken) throw new Error(data.error || "Wallet auth failed");

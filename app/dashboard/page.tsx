@@ -2,11 +2,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, doc, onSnapshot } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { Task, TaskCategory, getCategoryLabel, getStatusLabel, formatReward } from "@/lib/tasks";
-import Navbar from "@/components/Navbar";
+import { Task, TaskCategory, getCategoryLabel, getStatusLabel, getSubmissionStatusLabel, formatReward } from "@/lib/tasks";
+import { slotsRemaining } from "@/lib/claims";
+import { Cycle, cyclePhase, countdownLabel } from "@/lib/cycle";
+import AppShell, { PageHeader } from "@/components/AppShell";
+import TaskSuggestionModal from "@/components/TaskSuggestionModal";
 
 const RESOURCE_LINKS = [
   {
@@ -34,14 +37,13 @@ const RESOURCE_LINKS = [
   {
     label: "Nominate a Task",
     description: "Propose a new task for the board",
-    href: "", // TODO: add Google Form link when live
+    href: "",
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
       </svg>
     ),
-    external: true,
-    comingSoon: true,
+    action: "suggest",
   },
   {
     label: "DAO TASKBOARD",
@@ -72,15 +74,25 @@ function SkeletonCard() {
     <div className="card p-5">
       <div className="flex items-center gap-2 mb-3">
         <div className="skeleton h-3.5 w-16" />
-        <div className="skeleton h-5 w-24 rounded-full" />
+        <div className="skeleton h-4 w-24" />
       </div>
       <div className="skeleton h-4 w-4/5 mb-2" />
       <div className="skeleton h-3 w-full mb-1" />
       <div className="skeleton h-3 w-3/4 mb-6" />
-      <div className="border-t border-[#E8EBF0] pt-3 flex items-center justify-between">
+      <div className="border-t border-surface-container-high pt-3 flex items-center justify-between">
         <div className="skeleton h-6 w-16" />
-        <div className="skeleton h-8 w-20 rounded" />
+        <div className="skeleton h-8 w-20" />
       </div>
+    </div>
+  );
+}
+
+// Stat card: big mono number with a small label under it.
+function Stat({ value, label, accent }: { value: React.ReactNode; label: string; accent?: boolean }) {
+  return (
+    <div className={`card p-4 ${accent ? "border-l-2 border-l-brand" : ""}`}>
+      <p className="mono text-2xl font-semibold text-on-surface">{value}</p>
+      <p className="text-xs text-outline mt-1">{label}</p>
     </div>
   );
 }
@@ -94,193 +106,220 @@ export default function DashboardPage() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [subLoading, setSubLoading] = useState(true);
+  const [cycleCfg, setCycleCfg] = useState<Cycle | null>(null);
+  const [filterCycle, setFilterCycle] = useState<string>("all");
+  const [suggestOpen, setSuggestOpen] = useState(false);
+
+  // All three feeds are live, so a new task, reviewer decision, or cycle change appears without a manual refresh.
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "config", "cycle"), (snap) => {
+      setCycleCfg(snap.exists() ? ({ current: 1, ...snap.data() } as Cycle) : null);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [user, loading, router]);
 
   useEffect(() => {
-    getDocs(collection(db, "tasks")).then((snap) => {
+    const unsub = onSnapshot(collection(db, "tasks"), (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Task));
       list.sort((a, b) => (a.number || 0) - (b.number || 0));
       setTasks(list);
       setTasksLoading(false);
     });
+    return () => unsub();
   }, []);
 
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "submissions"), where("contributorId", "==", user.uid));
-    getDocs(q).then((snap) => {
+    const unsub = onSnapshot(q, (snap) => {
       const sorted = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .sort((a: any, b: any) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
       setMySubmissions(sorted);
       setSubLoading(false);
     });
+    return () => unsub();
   }, [user]);
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F4F5F7]">
-      <div className="w-8 h-8 border-2 border-[#E63329] border-t-transparent rounded-full animate-spin" />
+    <div className="min-h-screen flex items-center justify-center bg-background-deep">
+      <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
   const completedCount = tasks.filter((t) => t.status === "completed").length;
+  const cyclesPresent = Array.from(
+    new Set(tasks.map((t) => t.cycle).filter((c): c is number => typeof c === "number"))
+  ).sort((a, b) => b - a);
   const filteredTasks = (filter === "all" ? tasks : tasks.filter((t) => t.category === filter))
     .filter((t) => showCompleted || t.status !== "completed")
+    .filter((t) => filterCycle === "all" || String(t.cycle ?? "") === filterCycle)
     .sort((a, b) => Number(a.status === "completed") - Number(b.status === "completed"));
   const getMySubmission = (taskId: string) => mySubmissions.find((s) => s.taskId === taskId);
 
   const openCount = tasks.filter((t) => t.status === "open").length;
 
   return (
-    <div className="min-h-screen bg-[#F4F5F7]">
-      <Navbar />
+    <AppShell>
+      <PageHeader
+        title="Contributor Dashboard"
+        subtitle="Browse open tasks, submit your work, and track your progress."
+      />
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-[#1A1A2E]">Contributor Dashboard</h1>
-          <p className="text-[#888888] text-sm mt-1">
-            Browse open tasks, submit your work, and track your progress.
+      {/* Cycle countdown (B1) */}
+      {cycleCfg && countdownLabel(cycleCfg) && (
+        <div className={`card px-4 py-3 mb-6 flex items-center gap-3 flex-wrap ${
+          cyclePhase(cycleCfg) === "frozen" ? "border-l-2 border-l-warn" : "border-l-2 border-l-brand"
+        }`}>
+          <span className="mono text-xs uppercase tracking-wide text-outline">Cycle {cycleCfg.current}</span>
+          <span className="text-sm font-semibold text-on-surface">{countdownLabel(cycleCfg)}</span>
+          <Link href="/rules" className="ml-auto text-xs text-primary font-semibold hover:underline">Rules →</Link>
+        </div>
+      )}
+
+      {/* Resource links */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        {RESOURCE_LINKS.map((link) => {
+          const inner = (
+            <div className="card p-3.5 h-full flex items-start gap-3 transition-colors group hover:border-brand cursor-pointer">
+              <div className="mt-0.5 flex-shrink-0 text-primary">
+                {link.icon}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold leading-tight flex items-center gap-1 text-on-surface group-hover:text-primary transition-colors">
+                  {link.label}
+                  <svg className="w-2.5 h-2.5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </p>
+                <p className="text-[10px] text-outline mt-0.5 leading-tight">{link.description}</p>
+              </div>
+            </div>
+          );
+          return (link as any).action === "suggest" ? (
+            <button key={link.label} type="button" onClick={() => setSuggestOpen(true)} className="text-left">{inner}</button>
+          ) : (link as any).internal && link.href ? (
+            <Link key={link.label} href={link.href}>{inner}</Link>
+          ) : link.href ? (
+            <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer">{inner}</a>
+          ) : (
+            <div key={link.label}>{inner}</div>
+          );
+        })}
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        <Stat accent value={tasksLoading ? "-" : openCount} label="Open tasks" />
+        <Link href="/submissions" className="card p-4 hover:border-brand transition-colors group">
+          <p className="mono text-2xl font-semibold text-on-surface">{subLoading ? "-" : mySubmissions.length}</p>
+          <p className="text-xs text-outline mt-1 group-hover:text-primary transition-colors">My submissions →</p>
+        </Link>
+        <Stat value={subLoading ? "-" : mySubmissions.filter((s) => s.status === "under_review").length} label="Under review" />
+        <Stat value={subLoading ? "-" : mySubmissions.filter((s) => s.status === "approved").length} label="Shortlisted" />
+      </div>
+
+      {/* Category filter */}
+      <div className="flex items-center gap-2 mb-5 flex-wrap">
+        {CATEGORIES.map((cat) => (
+          <button
+            key={cat.value}
+            onClick={() => setFilter(cat.value)}
+            className={`px-3.5 py-1.5 rounded text-xs font-semibold transition-colors ${
+              filter === cat.value
+                ? "bg-brand text-white"
+                : "text-on-surface border border-outline-variant hover:border-brand hover:text-primary"
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
+        {completedCount > 0 && (
+          <label className="flex items-center gap-1.5 text-xs text-outline cursor-pointer select-none ml-1">
+            <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} className="accent-brand" />
+            Show completed ({completedCount})
+          </label>
+        )}
+        {cyclesPresent.length > 0 && (
+          <select className="input text-xs w-auto ml-auto" value={filterCycle} onChange={(e) => setFilterCycle(e.target.value)}>
+            <option value="all">All cycles</option>
+            {cyclesPresent.map((c) => <option key={c} value={String(c)}>Cycle {c}</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Task grid */}
+      {tasksLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      ) : filteredTasks.length === 0 ? (
+        <div className="card p-12 text-center">
+          <p className="text-outline text-sm">
+            {tasks.length === 0
+              ? "No tasks are open yet. The next cycle opens soon."
+              : "No tasks in this category."}
           </p>
         </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredTasks.map((task) => {
+            const mySub = getMySubmission(task.id);
+            const cap = task.maxSubmissions ?? 5;
+            // Same helper the task page uses (browse view has no claim data here, so this reflects submitted slots).
+            const slotsLeft = slotsRemaining(cap, task.submissionCount ?? 0, [], user?.uid);
+            const isCompleted = task.status === "completed";
+            return (
+              <Link
+                key={task.id}
+                href={`/tasks/${task.id}`}
+                className={`card p-5 flex flex-col transition-colors hover:border-brand ${isCompleted ? "opacity-60" : ""}`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                    <span className="mono text-xs text-outline">{task.id}</span>
+                    <span className={`badge-${task.category}`}>{getCategoryLabel(task.category)}</span>
+                    {typeof task.cycle === "number" && <span className="mono text-[10px] text-outline">c{task.cycle}</span>}
+                  </div>
+                  <span className={`badge-${mySub ? mySub.status : task.status} flex-shrink-0`}>
+                    {mySub ? getSubmissionStatusLabel(mySub.status, mySub.revisionCount) : getStatusLabel(task.status)}
+                  </span>
+                </div>
 
-        {/* Resource links */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-          {RESOURCE_LINKS.map((link) => {
-            const inner = (
-              <div className={`card p-3.5 flex items-start gap-3 transition-all group ${
-                link.comingSoon
-                  ? "opacity-60 cursor-default"
-                  : "hover:border-[#E63329] hover:shadow-sm cursor-pointer"
-              }`}>
-                <div className={`mt-0.5 flex-shrink-0 ${link.comingSoon ? "text-[#AAAAAA]" : "text-[#E63329]"}`}>
-                  {link.icon}
-                </div>
-                <div className="min-w-0">
-                  <p className={`text-xs font-semibold leading-tight flex items-center gap-1 ${link.comingSoon ? "text-[#AAAAAA]" : "text-[#1A1A2E] group-hover:text-[#E63329]"}`}>
-                    {link.label}
-                    {link.comingSoon ? (
-                      <span className="text-[9px] font-medium bg-[#F4F5F7] text-[#AAAAAA] px-1.5 py-0.5 rounded-full">Soon</span>
-                    ) : (
-                      <svg className="w-2.5 h-2.5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    )}
+                <h3 className="font-semibold text-on-surface text-sm mb-2 leading-snug">{task.title}</h3>
+                <p className="text-xs text-outline leading-relaxed flex-1">{task.shortDescription}</p>
+
+                {/* Slots remaining, stated before anyone starts work. */}
+                {!isCompleted && (
+                  <p className="mono text-[10px] mt-3 text-outline">
+                    {slotsLeft === 0
+                      ? <span className="text-error">NO SLOTS LEFT</span>
+                      : <>{slotsLeft} OF {cap} SLOTS LEFT</>}
                   </p>
-                  <p className="text-[10px] text-[#AAAAAA] mt-0.5 leading-tight">{link.description}</p>
+                )}
+
+                <div className="flex items-end justify-between gap-3 pt-3 mt-3 border-t border-surface-container-high">
+                  <div className="min-w-0">
+                    <p className="mono text-base font-semibold text-primary truncate">
+                      {formatReward(task.rewardRbnt, task.reward)}
+                    </p>
+                    <p className="mono text-[10px] text-outline mt-0.5">{task.paymentSplit}</p>
+                  </div>
+                  <span className="btn-primary text-xs px-3.5 py-1.5 flex-shrink-0">
+                    {mySub ? "View submission" : "View task"}
+                  </span>
                 </div>
-              </div>
-            );
-            return (link as any).internal && link.href ? (
-              <Link key={link.label} href={link.href}>{inner}</Link>
-            ) : link.href && !link.comingSoon ? (
-              <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer">{inner}</a>
-            ) : (
-              <div key={link.label}>{inner}</div>
+              </Link>
             );
           })}
         </div>
+      )}
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-          <div className="card p-4 border-l-4 border-l-[#E63329]">
-            <p className="text-2xl font-bold text-[#1A1A2E]">{tasksLoading ? "..." : openCount}</p>
-            <p className="text-xs text-[#888888] mt-0.5">Open Tasks</p>
-          </div>
-          <Link href="/submissions" className="card p-4 hover:border-[#E63329] transition-colors group">
-            <p className="text-2xl font-bold text-[#1A1A2E]">{subLoading ? "..." : mySubmissions.length}</p>
-            <p className="text-xs text-[#888888] mt-0.5 group-hover:text-[#E63329] transition-colors">My Submissions →</p>
-          </Link>
-          <div className="card p-4">
-            <p className="text-2xl font-bold text-[#1A1A2E]">{subLoading ? "..." : mySubmissions.filter((s) => s.status === "under_review").length}</p>
-            <p className="text-xs text-[#888888] mt-0.5">Under Review</p>
-          </div>
-          <div className="card p-4">
-            <p className="text-2xl font-bold text-[#1A1A2E]">{subLoading ? "..." : mySubmissions.filter((s) => s.status === "approved").length}</p>
-            <p className="text-xs text-[#888888] mt-0.5">Approved</p>
-          </div>
-        </div>
-
-        {/* Category filter */}
-        <div className="flex items-center gap-2 mb-5 flex-wrap">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat.value}
-              onClick={() => setFilter(cat.value)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                filter === cat.value
-                  ? "bg-[#E63329] text-white shadow-sm"
-                  : "bg-white text-[#555555] border border-[#E8EBF0] hover:border-[#E63329] hover:text-[#E63329]"
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
-          {completedCount > 0 && (
-            <label className="flex items-center gap-1.5 text-xs text-[#555555] cursor-pointer select-none ml-1">
-              <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
-              Show completed ({completedCount})
-            </label>
-          )}
-        </div>
-
-        {/* Task grid */}
-        {tasksLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
-          </div>
-        ) : filteredTasks.length === 0 ? (
-          <div className="card p-12 text-center">
-            <p className="text-[#888888] text-sm">
-              {tasks.length === 0
-                ? "No tasks available yet. Check back soon."
-                : "No tasks in this category."}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredTasks.map((task) => {
-              const mySub = getMySubmission(task.id);
-              return (
-                <div key={task.id} className="card p-5 flex flex-col hover:border-[#E63329] hover:shadow-md transition-all cursor-pointer">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-mono text-[#AAAAAA]">{task.id}</span>
-                      <span className={`badge-${task.category}`}>{getCategoryLabel(task.category)}</span>
-                    </div>
-                    <span className={`badge-${mySub ? mySub.status : task.status} flex-shrink-0`}>
-                      {mySub ? getStatusLabel(mySub.status) : getStatusLabel(task.status)}
-                    </span>
-                  </div>
-
-                  <h3 className="font-bold text-[#1A1A2E] text-sm mb-2 leading-tight">{task.title}</h3>
-                  <p className="text-xs text-[#888888] leading-relaxed flex-1 mb-1">{task.shortDescription}</p>
-                  {/* Richer preview matching detailed specs from reference docs */}
-                  {task.deliverables && task.deliverables[0] && (
-                    <p className="text-[10px] text-[#666] line-clamp-1 mb-3">Key: {task.deliverables[0]}</p>
-                  )}
-                  {task.maxSubmissions && (
-                    <div className="text-[10px] text-[#888888] mb-2">Cap: {task.maxSubmissions}</div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-3 border-t border-[#E8EBF0]">
-                    <div>
-                      <p className="text-lg font-bold text-[#E63329]">{formatReward(task.rewardRbnt, task.reward)}</p>
-                      <p className="text-[10px] text-[#AAAAAA]">{task.paymentSplit}</p>
-                    </div>
-                    <Link href={`/tasks/${task.id}`} className="btn-primary text-xs px-4 py-2">
-                      {mySub ? "View Submission" : "View Task"}
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+      {suggestOpen && <TaskSuggestionModal onClose={() => setSuggestOpen(false)} />}
+    </AppShell>
   );
 }

@@ -2,10 +2,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import type { Connector } from "wagmi";
 import { useAuth } from "@/lib/auth-context";
 import { useWalletConnectors } from "@/lib/use-wallet-connect";
+import Logo from "@/components/Logo";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function LoginPage() {
   const { walletLogin } = useAuth();
@@ -30,13 +31,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F5F7] flex flex-col">
+    <div className="min-h-screen bg-background-deep flex flex-col">
       {/* Top bar */}
-      <div className="bg-[#2C2C2C] py-2 px-4">
-        <div className="max-w-6xl mx-auto flex items-center gap-3">
-          <Image src="/dao-logo.png" alt="Redbelly DAO" height={24} width={35} className="object-contain brightness-0 invert" />
-          <span className="text-white text-xs font-semibold tracking-wide">REDBELLY NETWORK DAO</span>
-          <span className="text-white/50 text-xs">· Community Task Board</span>
+      <div className="page-header py-2 px-4">
+        <div className="max-w-[1280px] mx-auto flex items-center gap-3">
+          <Logo height={24} width={35} />
+          <span className="mono text-on-surface text-xs font-bold tracking-widest uppercase">Redbelly Network DAO</span>
+          <span className="text-outline text-xs hidden sm:inline">· Community Task Board</span>
+          <span className="ml-auto"><ThemeToggle /></span>
         </div>
       </div>
 
@@ -44,26 +46,26 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <Image src="/dao-logo.png" alt="Redbelly DAO" height={52} width={77} className="object-contain" />
+              <Logo height={52} width={77} />
             </div>
-            <h1 className="text-2xl font-bold text-[#1A1A2E]">Sign In</h1>
-            <p className="text-[#888888] text-sm mt-1">Access the Redbelly DAO Task Board</p>
+            <h1 className="text-2xl font-semibold text-on-surface">Sign in</h1>
+            <p className="text-outline text-sm mt-1">Access the Redbelly DAO Task Board</p>
           </div>
 
-          <div className="card p-6">
+          <div className="card card-lg p-6">
             <div className="space-y-4">
               {connectors.length === 0 ? (
-                <div className="bg-[#F4F5F7] border border-[#E8EBF0] rounded-lg p-4 text-center">
-                  <p className="text-sm text-[#555555] font-medium">No wallet detected</p>
-                  <p className="text-xs text-[#888888] mt-1">
+                <div className="border border-outline-variant rounded p-4 text-center">
+                  <p className="text-sm text-on-surface font-medium">No wallet detected</p>
+                  <p className="text-xs text-outline mt-1">
                     Install a browser wallet such as{" "}
-                    <a href="https://www.okx.com/web3" target="_blank" rel="noopener noreferrer" className="text-[#E63329] hover:underline">OKX</a>,{" "}
-                    <a href="https://metamask.io/" target="_blank" rel="noopener noreferrer" className="text-[#E63329] hover:underline">MetaMask</a>, or Coinbase Wallet, then refresh this page.
+                    <a href="https://www.okx.com/web3" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OKX</a>,{" "}
+                    <a href="https://metamask.io/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">MetaMask</a>, or Coinbase Wallet, then refresh this page.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-xs text-[#888888] text-center mb-1">Choose a wallet to connect and sign in</p>
+                  <p className="text-xs text-outline text-center mb-1">Choose a wallet to connect and sign in</p>
                   {connectors.map((connector) => {
                     const pending = pendingId === connector.uid;
                     return (
@@ -93,40 +95,40 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <div className="text-center text-xs text-[#666666] leading-tight">
+              <div className="text-center text-xs text-outline leading-relaxed">
                 KYC is required to access the Redbelly Network.<br />
                 <a
                   href="https://access.redbelly.network/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#E63329] hover:underline"
+                  className="mono text-primary hover:underline"
                 >
-                  https://access.redbelly.network/
+                  access.redbelly.network
                 </a>
               </div>
 
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-red-700 text-xs text-center">{error}</p>
+                <div className="border border-error rounded p-3">
+                  <p className="text-error text-xs text-center">{error}</p>
                 </div>
               )}
             </div>
 
-            <div className="mt-6 pt-4 border-t border-[#E8EBF0] text-center">
-              <p className="text-sm text-[#555555]">
+            <div className="mt-6 pt-4 border-t border-surface-container-high text-center">
+              <p className="text-sm text-outline">
                 New contributor?{" "}
-                <Link href="/register" className="text-[#E63329] font-semibold hover:underline">
+                <Link href="/register" className="text-primary font-semibold hover:underline">
                   Create an account
                 </Link>
               </p>
             </div>
           </div>
 
-          <p className="text-center text-xs text-[#AAAAAA] mt-6">
+          <p className="mono text-center text-[10px] text-outline mt-6 uppercase tracking-widest">
             Redbelly DAO Community Task Board · 2026
           </p>
-          <p className="text-center text-xs mt-2">
-            <Link href="/ledger" className="text-[#888888] hover:text-[#E63329] hover:underline">View the public transparency ledger →</Link>
+          <p className="text-center text-xs mt-3">
+            <Link href="/ledger" className="text-outline hover:text-primary hover:underline">View the public transparency ledger →</Link>
           </p>
         </div>
       </div>

@@ -88,3 +88,64 @@ export async function notifyNewMessage({
     await Promise.all(ops).catch(() => { /* non-blocking */ });
   }
 }
+
+// Fired when a contributor files an appeal (rulebook 09). Admin broadcast only: no single reviewer/admin owns it yet.
+export async function notifyAppealFiled({
+  submissionId,
+  taskId,
+  taskTitle,
+  senderWallet,
+  senderRole,
+  appealType,
+}: {
+  submissionId: string;
+  taskId: string;
+  taskTitle: string;
+  senderWallet: string;
+  senderRole: string;
+  appealType: string;
+}) {
+  await addDoc(collection(db, "notifications"), {
+    type: "appeal_filed",
+    submissionId,
+    taskId,
+    taskTitle,
+    senderWallet,
+    senderRole,
+    messagePreview: `Appeal filed (${appealType === "rejection" ? "rejection" : "winner selection"})`,
+    recipientId: null,
+    forAdmins: true,
+    readBy: [],
+    createdAt: serverTimestamp(),
+  }).catch(() => { /* non-blocking */ });
+}
+
+// Fired when admin decides an appeal. Personal notification to the contributor.
+export async function notifyAppealDecided({
+  submissionId,
+  taskId,
+  taskTitle,
+  contributorId,
+  adminWallet,
+  outcome,
+}: {
+  submissionId: string;
+  taskId: string;
+  taskTitle: string;
+  contributorId: string;
+  adminWallet?: string;
+  outcome: "upheld" | "overturned";
+}) {
+  await addDoc(collection(db, "notifications"), {
+    type: "appeal_decided",
+    submissionId,
+    taskId,
+    taskTitle,
+    senderWallet: adminWallet ?? "",
+    senderRole: "admin",
+    messagePreview: outcome === "overturned" ? "Your appeal was overturned" : "Your appeal was upheld: decision stands",
+    recipientId: contributorId,
+    read: false,
+    createdAt: serverTimestamp(),
+  }).catch(() => { /* non-blocking */ });
+}

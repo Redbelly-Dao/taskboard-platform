@@ -28,9 +28,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return this.props.fallback || (
-        <div className="card p-6 m-4 border-l-4 border-[#E63329]">
-          <p className="font-bold text-[#1A1A2E] mb-2">Something went wrong.</p>
-          <p className="text-sm text-[#888888]">Please refresh or try again later.</p>
+        <div className="card p-6 m-4 border-l-2 border-l-brand">
+          <p className="font-semibold text-on-surface mb-2">Something went wrong.</p>
+          <p className="text-sm text-outline">Please refresh or try again later.</p>
         </div>
       );
     }
