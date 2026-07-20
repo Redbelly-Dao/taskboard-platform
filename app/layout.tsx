@@ -30,6 +30,7 @@ export const metadata: Metadata = {
 
 // Runs before first paint so the stored theme is applied without a flash of the wrong scheme.
 // Dark is the default (DESIGN.md is a native dark system).
+// suppressHydrationWarning on <html> covers the data-theme swap this makes before React hydrates.
 const themeScript = `
 (function(){
   try {
@@ -43,7 +44,7 @@ const themeScript = `
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" className={`${beVietnam.variable} ${jetbrains.variable}`}>
+    <html lang="en" data-theme="dark" suppressHydrationWarning className={`${beVietnam.variable} ${jetbrains.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
