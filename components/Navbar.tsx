@@ -11,6 +11,10 @@ import { db } from "@/lib/firebase";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import Modal from "@/components/ui/Modal";
+import { useUploadThing } from "@/lib/uploadthing";
+
+const MAX_ATTACHMENTS = 3;
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
 // Simple user avatar, so the profile chip reads as a person rather than a bare box.
 function AvatarIcon({ className = "" }: { className?: string }) {
@@ -367,25 +371,69 @@ export default function Navbar() {
   );
 }
 
+type PendingImage = { file: File; previewUrl: string };
+
 // General product feedback: bugs, ideas, anything not working. Tracked in the admin Feedback tab.
 function FeedbackModal({ onClose }: { onClose: () => void }) {
   const { appUser } = useAuth();
   const [type, setType] = useState("bug");
   const [message, setMessage] = useState("");
+  const [images, setImages] = useState<PendingImage[]>([]);
+  const [imageError, setImageError] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+
+  const { startUpload, isUploading } = useUploadThing("feedbackImage");
+
+  const addImages = (files: FileList | null) => {
+    if (!files) return;
+    setImageError("");
+    const next: PendingImage[] = [];
+    for (const file of Array.from(files)) {
+      if (images.length + next.length >= MAX_ATTACHMENTS) {
+        setImageError(`Up to ${MAX_ATTACHMENTS} images.`);
+        break;
+      }
+      if (!file.type.startsWith("image/")) {
+        setImageError("Only image files are supported.");
+        continue;
+      }
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setImageError("Each image must be under 5MB.");
+        continue;
+      }
+      next.push({ file, previewUrl: URL.createObjectURL(file) });
+    }
+    if (next.length) setImages((prev) => [...prev, ...next]);
+  };
+
+  const removeImage = (index: number) => {
+    setImages((prev) => {
+      URL.revokeObjectURL(prev[index].previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
 
   const send = async () => {
     if (!message.trim() || !appUser) return;
     setSending(true);
     try {
+      let attachments: { url: string; key: string; name: string; size: number }[] = [];
+      if (images.length) {
+        const uploaded = await startUpload(images.map((i) => i.file));
+        if (!uploaded) throw new Error("Upload failed");
+        attachments = uploaded.map((f) => ({ url: f.ufsUrl, key: f.key, name: f.name, size: f.size }));
+      }
+
       await addDoc(collection(db, "feedback"), {
         from: appUser.walletAddress,
         username: appUser.username || null,
         type,
         message: message.trim(),
+        attachments,
         createdAt: serverTimestamp(),
       });
+      images.forEach((i) => URL.revokeObjectURL(i.previewUrl));
       setSent(true);
       setTimeout(onClose, 1200);
     } catch {
@@ -427,10 +475,43 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
             autoFocus
           />
 
+          <div className="flex items-center justify-between mt-4 mb-1.5">
+            <span className="label mb-0">Screenshots (optional)</span>
+            <span className="mono text-[10px] text-outline">{images.length}/{MAX_ATTACHMENTS}</span>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-1.5">
+            {images.map((img, i) => (
+              <div key={img.previewUrl} className="relative w-16 h-16 rounded overflow-hidden border border-outline-variant">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.previewUrl} alt={img.file.name} className="w-full h-full object-cover" />
+                <button
+                  onClick={() => removeImage(i)}
+                  aria-label={`Remove ${img.file.name}`}
+                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 text-white flex items-center justify-center leading-none text-[10px]"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {images.length < MAX_ATTACHMENTS && (
+              <label className="w-16 h-16 rounded border border-dashed border-outline-variant flex items-center justify-center text-outline hover:border-brand hover:text-primary cursor-pointer transition-colors">
+                <span className="text-lg leading-none">+</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => { addImages(e.target.files); e.target.value = ""; }}
+                />
+              </label>
+            )}
+          </div>
+          {imageError && <p className="text-xs text-error mb-2">{imageError}</p>}
+
           <div className="flex justify-end gap-2 mt-4 mb-2">
             <button onClick={onClose} className="btn-secondary text-xs">Cancel</button>
-            <button onClick={send} disabled={!message.trim() || sending} className="btn-primary text-xs">
-              {sending ? "Sending…" : "Send feedback"}
+            <button onClick={send} disabled={!message.trim() || sending || isUploading} className="btn-primary text-xs">
+              {sending || isUploading ? "Sending…" : "Send feedback"}
             </button>
           </div>
         </>

@@ -100,6 +100,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   const [feedbackItems, setFeedbackItems] = useState<any[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [resolvingFeedbackId, setResolvingFeedbackId] = useState<string | null>(null);
 
   const [suggestionItems, setSuggestionItems] = useState<any[]>([]);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
@@ -308,6 +309,39 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         setFeedbackLoading(false);
       })
       .catch(() => setFeedbackLoading(false));
+  };
+
+  // Server route does the actual work (auth + UTApi deletion); this just calls it and patches local state.
+  const resolveFeedback = async (feedbackId: string) => {
+    if (!user) return;
+    setResolvingFeedbackId(feedbackId);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/feedback/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ feedbackId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to resolve");
+
+      setFeedbackItems((prev) => prev.map((f) => {
+        if (f.id !== feedbackId) return f;
+        const purgedAttachments = (f.attachments || []).map((a: any) => ({ name: a.name, size: a.size }));
+        return {
+          ...f,
+          status: "resolved",
+          resolvedAt: new Date(),
+          attachments: undefined,
+          purgedAttachments,
+          purgedAttachmentCount: data.purgedAttachmentCount ?? purgedAttachments.length,
+        };
+      }));
+    } catch {
+      // row just stays unresolved; admin can retry
+    } finally {
+      setResolvingFeedbackId(null);
+    }
   };
 
   const refreshSuggestions = () => {
@@ -847,7 +881,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     ledgerDocs, expandedLedger, setExpandedLedger,
     auditSub, setAuditSub,
     overrideSub, setOverrideSub, overrideDecision, setOverrideDecision, overrideFeedback, setOverrideFeedback, overriding,
-    auditLogs, auditLoading, feedbackItems, feedbackLoading,
+    auditLogs, auditLoading, feedbackItems, feedbackLoading, resolvingFeedbackId, resolveFeedback,
     suggestionItems, suggestionLoading, refreshSuggestions, updateSuggestionStatus,
     appeals, openAppeals, decidedAppeals, openAppealTaskIds, appealNotes, setAppealNote, decideAppeal,
     submissionSearch, setSubmissionSearch, submissionStatusFilter, setSubmissionStatusFilter,
