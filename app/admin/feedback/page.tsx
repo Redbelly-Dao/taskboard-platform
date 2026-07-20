@@ -70,7 +70,7 @@ export default function FeedbackTab() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-xs text-on-surface align-top">
-                            <p className="whitespace-pre-wrap max-w-[420px]">{f.message}</p>
+                            <p className="whitespace-pre-wrap break-words max-w-[420px]">{f.message}</p>
                           </td>
                           <td className="px-4 py-3 text-xs align-top">
                             {resolved ? (
