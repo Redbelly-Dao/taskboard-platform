@@ -23,9 +23,29 @@ const jetbrains = JetBrains_Mono({
   display: "swap",
 });
 
+// metadataBase resolves the relative image paths below; without it Next emits no absolute OG URL and the card renders bare.
+// Set NEXT_PUBLIC_SITE_URL on the host so preview deploys advertise themselves rather than the production domain.
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://taskboard.redbellydao.network";
+const description = "Community Task Board: submit work, review deliverables, track progress.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "Redbelly DAO Task Board",
-  description: "Community Task Board: submit work, review deliverables, track progress.",
+  description,
+  openGraph: {
+    title: "Redbelly DAO Task Board",
+    description,
+    url: siteUrl,
+    siteName: "Redbelly DAO Task Board",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Redbelly DAO Task Board" }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Redbelly DAO Task Board",
+    description,
+    images: ["/og-image.png"],
+  },
 };
 
 // Runs before first paint so the stored theme is applied without a flash of the wrong scheme.
