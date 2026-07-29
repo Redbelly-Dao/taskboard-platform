@@ -4,7 +4,7 @@ import { useAdmin, ListEditor, TASK_CATEGORIES } from "@/app/admin/AdminProvider
 import SubmissionChat from "@/components/SubmissionChat";
 
 export default function AdminModals() {
-  const { submissions, auditSub, setAuditSub, overrideSub, setOverrideSub, overrideDecision, setOverrideDecision, overrideFeedback, setOverrideFeedback, overriding, payConfirmId, setPayConfirmId, markingPaid, rbntPrice, rbntPriceLoading, rbntPriceError, fetchRbntPrice, toRbnt, taskFormOpen, setTaskFormOpen, taskFormMode, formTaskId, setFormTaskId, formTitle, setFormTitle, formCategory, setFormCategory, formReward, setFormReward, formRewardRbnt, setFormRewardRbnt, formPaymentSplit, setFormPaymentSplit, formStatus, setFormStatus, formShortDesc, setFormShortDesc, formProblem, setFormProblem, formDeliverables, setFormDeliverables, formBenchmarks, setFormBenchmarks, formFailure, setFormFailure, formTechnicalReqs, setFormTechnicalReqs, formInfrastructure, setFormInfrastructure, formMaxSubs, setFormMaxSubs, formReviewerId, setFormReviewerId, reviewers, formSaving, formError, deleteConfirmId, setDeleteConfirmId, reviewerCompRbntDisplay, reviewerCompUsdDisplay, applyAdminOverride, markAsPaid, saveTask, deleteTask, walletToDiscord, reviewerLabel } = useAdmin();
+  const { submissions, auditSub, setAuditSub, overrideSub, setOverrideSub, overrideDecision, setOverrideDecision, overrideFeedback, setOverrideFeedback, overriding, payConfirmId, setPayConfirmId, markingPaid, rbntPrice, rbntPriceLoading, rbntPriceError, fetchRbntPrice, toRbnt, taskFormOpen, setTaskFormOpen, taskFormMode, formTaskId, setFormTaskId, formTitle, setFormTitle, formCategory, setFormCategory, formReward, setFormReward, formRewardRbnt, setFormRewardRbnt, formPaymentSplit, setFormPaymentSplit, formStatus, setFormStatus, formShortDesc, setFormShortDesc, formProblem, setFormProblem, formDeliverables, setFormDeliverables, formBenchmarks, setFormBenchmarks, formFailure, setFormFailure, formTechnicalReqs, setFormTechnicalReqs, formInfrastructure, setFormInfrastructure, formMaxSubs, setFormMaxSubs, formReviewerId, setFormReviewerId, reviewers, formSaving, formError, deleteConfirmId, setDeleteConfirmId, deleteError, deleteConfirmText, setDeleteConfirmText, deleteTaskAndSubmissions, reviewerCompRbntDisplay, reviewerCompUsdDisplay, applyAdminOverride, markAsPaid, saveTask, deleteTask, walletToDiscord, reviewerLabel } = useAdmin();
   return (
     <>
       {/* TASK FORM PANEL */}
@@ -167,23 +167,62 @@ export default function AdminModals() {
       )}
 
       {/* DELETE CONFIRMATION */}
-      {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-surface-slate rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
-            <h3 className="font-bold text-on-surface mb-1">Delete Task?</h3>
-            <p className="text-sm text-outline mb-5">
-              Permanently delete <span className="mono font-semibold text-on-surface">{deleteConfirmId}</span>?
-              This cannot be undone and will be logged to the audit trail.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => deleteTask(deleteConfirmId)} className="btn-primary" style={{ backgroundColor: "#DC2626" }}>
-                Delete
-              </button>
-              <button onClick={() => setDeleteConfirmId(null)} className="btn-secondary">Cancel</button>
+      {deleteConfirmId && (() => {
+        const subsOnTask = submissions.filter((s) => s.taskId === deleteConfirmId);
+        const hasPaid = subsOnTask.some((s) => s.paymentProcessed);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-surface-slate rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+              <h3 className="font-bold text-on-surface mb-1">Delete Task?</h3>
+              <p className="text-sm text-outline mb-4">
+                Permanently delete <span className="mono font-semibold text-on-surface">{deleteConfirmId}</span>?
+                This cannot be undone and will be logged to the audit trail.
+              </p>
+
+              {subsOnTask.length === 0 && (
+                <>
+                  {deleteError && <p className="text-xs text-error mb-4">{deleteError}</p>}
+                  <div className="flex gap-3">
+                    <button onClick={() => deleteTask(deleteConfirmId)} className="btn-primary" style={{ backgroundColor: "#DC2626" }}>
+                      Delete
+                    </button>
+                    <button onClick={() => setDeleteConfirmId(null)} className="btn-secondary">Cancel</button>
+                  </div>
+                </>
+              )}
+
+              {subsOnTask.length > 0 && hasPaid && (
+                <>
+                  <p className="text-xs text-error mb-4">
+                    This task has a paid submission. Paid work stays on the record permanently and cannot be deleted, task included.
+                  </p>
+                  <button onClick={() => setDeleteConfirmId(null)} className="btn-secondary">Close</button>
+                </>
+              )}
+
+              {subsOnTask.length > 0 && !hasPaid && (
+                <>
+                  <p className="text-xs text-outline mb-3">
+                    This task has {subsOnTask.length} submission{subsOnTask.length === 1 ? "" : "s"}.
+                    Deleting it deletes all of them too, permanently.
+                    Type the task id to confirm.
+                  </p>
+                  <input className="input mb-3" placeholder={deleteConfirmId} value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)} />
+                  {deleteError && <p className="text-xs text-error mb-4">{deleteError}</p>}
+                  <div className="flex gap-3">
+                    <button onClick={() => deleteTaskAndSubmissions(deleteConfirmId)} disabled={deleteConfirmText !== deleteConfirmId}
+                      className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed" style={{ backgroundColor: "#DC2626" }}>
+                      Delete task and submissions
+                    </button>
+                    <button onClick={() => setDeleteConfirmId(null)} className="btn-secondary">Cancel</button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MARK AS PAID CONFIRMATION */}
       {payConfirmId && (

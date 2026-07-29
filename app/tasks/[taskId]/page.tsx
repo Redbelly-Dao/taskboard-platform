@@ -15,6 +15,7 @@ import RevisionCountdown from "@/components/RevisionCountdown";
 import Link from "next/link";
 import { sendSubmissionMessage } from "@/lib/submission-messages";
 import { notifyAppealFiled } from "@/lib/notifications";
+import { deliverableLinkOf } from "@/lib/ledger";
 
 export default function TaskPage() {
   const { taskId } = useParams<{ taskId: string }>();
@@ -450,21 +451,53 @@ export default function TaskPage() {
     </AppShell>
   );
 
-  if (!task) return (
-    <AppShell width="narrow">
-      <div className="py-16 text-center">
-        <p className="text-outline">Task not found.</p>
-        <Link href="/dashboard" className="text-primary text-sm font-semibold mt-4 inline-block hover:underline">
-          ← Back to dashboard
-        </Link>
-      </div>
-    </AppShell>
-  );
-
-  const cap = task.maxSubmissions ?? 5;
   // A submission the user forfeited in an EARLIER cycle no longer blocks a fresh attempt.
   // A forfeit in the CURRENT cycle does (the per-cycle ban).
+  // Resolved above the `task` guard so a removed task cannot take the contributor's own record down with it.
   const activeSub = existingSub && !(existingSub.status === "withdrawn" && existingSub.cycle !== cycle) ? existingSub : null;
+
+  if (!task) {
+    // The task doc is gone, but the submission (title, decision, deliverable link) is its own document and outlives it.
+    // Show that instead of a dead end.
+    if (activeSub) {
+      const link = deliverableLinkOf(activeSub);
+      return (
+        <AppShell width="narrow">
+          <div className="card p-6">
+            <p className="text-xs text-outline mb-3">This task has been removed. Your submission record is kept below.</p>
+            <div className="flex items-center gap-2 mb-3">
+              <h1 className="font-semibold text-on-surface">{activeSub.taskTitle || "Untitled task"}</h1>
+              <span className={`badge-${activeSub.status}`}>{getSubmissionStatusLabel(activeSub.status, activeSub.revisionCount)}</span>
+            </div>
+            {typeof activeSub.reviewTotalScore === "number" && (
+              <p className="text-sm text-on-surface mb-2">Score: <span className="mono">{activeSub.reviewTotalScore}/35</span></p>
+            )}
+            {activeSub.requiredChanges && (
+              <p className="text-sm text-outline mb-2 whitespace-pre-wrap">{activeSub.requiredChanges}</p>
+            )}
+            {link && (
+              <a href={link} target="_blank" rel="noopener noreferrer" className="text-primary text-sm font-semibold hover:underline break-all">{link}</a>
+            )}
+          </div>
+          <Link href="/submissions" className="text-primary text-sm font-semibold mt-4 inline-block hover:underline">
+            ← Back to my submissions
+          </Link>
+        </AppShell>
+      );
+    }
+    return (
+      <AppShell width="narrow">
+        <div className="py-16 text-center">
+          <p className="text-outline">Task not found.</p>
+          <Link href="/dashboard" className="text-primary text-sm font-semibold mt-4 inline-block hover:underline">
+            ← Back to dashboard
+          </Link>
+        </div>
+      </AppShell>
+    );
+  }
+
+  const cap = task.maxSubmissions ?? 5;
 
   // Appeals (rulebook 09).
   // Decision timestamp is reviewedAt, or the later of a subsequent admin override, whichever is more recent.

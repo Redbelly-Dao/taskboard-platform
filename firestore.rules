@@ -149,6 +149,11 @@ service cloud.firestore {
         )
       );
 
+      // Admin-only, used by the cascade task delete.
+      // A paid submission is never deletable, enforced here and not just in the client, same reasoning as the create rule.
+      allow delete: if request.auth != null && role() == "admin"
+        && resource.data.get("paymentProcessed", false) == false;
+
       // Submission chat messages, role-based like the original
       // (a conflicted reviewer is kept out of the chat by the detail page,
       // which blocks them from opening the submission at all).

@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   collection, getDocs, getDoc, doc, updateDoc, setDoc, deleteDoc, addDoc,
-  query, orderBy, serverTimestamp, onSnapshot,
+  query, orderBy, serverTimestamp, onSnapshot, writeBatch,
 } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
@@ -144,6 +144,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  useEffect(() => { setDeleteError(""); setDeleteConfirmText(""); }, [deleteConfirmId]);
 
   useEffect(() => {
     if (!loading && (!user || (appUser && appUser.role !== "admin"))) {
@@ -674,12 +677,49 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Submissions carry the taskId (deliverable link, rubric scores, rights agreement), so a bare delete is only offered at a count of zero.
+  // Re-checked here in case the UI state is stale.
   const deleteTask = async (id: string) => {
+    const submissionCount = taskSubmissionCounts[id] || 0;
+    if (submissionCount > 0) {
+      setDeleteError(`This task has ${submissionCount} submission${submissionCount === 1 ? "" : "s"} tied to it. Use "Delete task and submissions" below.`);
+      return;
+    }
     const task = tasks.find((t) => t.id === id);
     await deleteDoc(doc(db, "tasks", id));
     setTasks((prev) => prev.filter((t) => t.id !== id));
     setDeleteConfirmId(null);
+    setDeleteError("");
     await logAdminAction("task_deleted", { taskId: id, taskTitle: task?.title });
+  };
+
+  // Deliberate cascade: the task, every submission on it, and its ledger entry, in one batch.
+  // Refused outright if any submission was ever paid, since that record and the ledger entry behind it have to survive.
+  const deleteTaskAndSubmissions = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    const subs = subsForTask(id);
+    if (subs.some((s) => s.paymentProcessed)) {
+      setDeleteError("This task has a paid submission. Paid work stays on the record permanently and cannot be deleted.");
+      return;
+    }
+    const batch = writeBatch(db);
+    subs.forEach((s) => batch.delete(doc(db, "submissions", s.id)));
+    if (ledgerDocs[id]) batch.delete(doc(db, "ledger", id));
+    batch.delete(doc(db, "tasks", id));
+    await batch.commit();
+
+    setSubmissions((prev) => prev.filter((s) => s.taskId !== id));
+    setLedgerDocs((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    setDeleteConfirmId(null);
+    setDeleteError("");
+    setDeleteConfirmText("");
+    await logAdminAction("task_and_submissions_deleted", {
+      taskId: id,
+      taskTitle: task?.title,
+      deletedSubmissionIds: subs.map((s) => s.id),
+      deletedSubmissionCount: subs.length,
+    });
   };
 
   // Payment gating: task must be Completed, only the top approved submission is payable.
@@ -896,7 +936,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     formPaymentSplit, setFormPaymentSplit, formStatus, setFormStatus, formShortDesc, setFormShortDesc,
     formProblem, setFormProblem, formDeliverables, setFormDeliverables, formBenchmarks, setFormBenchmarks,
     formFailure, setFormFailure, formTechnicalReqs, setFormTechnicalReqs, formInfrastructure, setFormInfrastructure,
-    formMaxSubs, setFormMaxSubs, formReviewerId, setFormReviewerId, reviewers, formSaving, formError, deleteConfirmId, setDeleteConfirmId,
+    formMaxSubs, setFormMaxSubs, formReviewerId, setFormReviewerId, reviewers, formSaving, formError, deleteConfirmId, setDeleteConfirmId, deleteError,
+    deleteConfirmText, setDeleteConfirmText, deleteTaskAndSubmissions,
     reviewerCompRbntDisplay, reviewerCompUsdDisplay,
     // cycle + pause
     cycle, cycleConfig, bumpCycle, saveCycleDates, boardPaused, pauseMessage, setPauseMessage, toggleBoardPause, savePauseMessage,
