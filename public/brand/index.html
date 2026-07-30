@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Visual and written standards for Redbelly DAO Task Board deliverables.">
+<meta name="robots" content="index, follow">
+<link rel="icon" href="/icon.png">
+<title>Redbelly DAO Task Board Brand Kit</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f181d;
+    --bg-deep: #121b20;
+    --slate: #1e2a31;
+    --container: #1b252a;
+    --container-high: #27323a;
+    --ink: #e4ebf0;
+    --ink-dim: #b8c4cc;
+    --line: #3a4650;
+    --line-soft: #27323a;
+    --brand: #EF5350;
+    --brand-hover: #f95a56;
+    --primary: #ffb3ae;
+    --ok: #86EFAC;
+    --warn: #FCD34D;
+    --r: 4px;
+    --r-lg: 8px;
+    --sans: "Be Vietnam Pro", ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px 96px; }
+  @media (max-width: 767px) { .wrap { padding: 0 16px 64px; } }
+
+  header.masthead {
+    border-bottom: 1px solid var(--line-soft);
+    padding: 64px 0 40px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  @media (min-width: 900px) {
+    header.masthead { grid-template-columns: 1.4fr 1fr; align-items: end; gap: 48px; }
+  }
+
+  h1 {
+    font-size: 40px;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    margin: 0 0 12px;
+  }
+  @media (min-width: 900px) { h1 { font-size: 52px; } }
+
+  h2 {
+    font-size: 26px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+    margin: 0 0 8px;
+  }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin: 32px 0 12px;
+  }
+
+  p { max-width: 68ch; margin: 0 0 14px; color: var(--ink-dim); }
+  p.lead { color: var(--ink); font-size: 18px; }
+  strong { color: var(--ink); font-weight: 600; }
+  code, .mono { font-family: var(--mono); font-size: 0.88em; letter-spacing: 0.02em; }
+
+  section { padding: 56px 0 8px; border-top: 1px solid var(--line-soft); }
+  section:first-of-type { border-top: 0; }
+
+  .note {
+    border-left: 2px solid var(--brand);
+    background: var(--bg-deep);
+    padding: 16px 20px;
+    margin: 20px 0;
+    border-radius: 0 var(--r) var(--r) 0;
+  }
+  .note p:last-child { margin-bottom: 0; }
+
+  /* Colour */
+  .swatches { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 20px 0; }
+  @media (min-width: 700px) { .swatches { grid-template-columns: repeat(4, 1fr); } }
+  .sw {
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r);
+    overflow: hidden;
+    background: var(--slate);
+  }
+  .sw .chip { height: 84px; display: block; }
+  .sw .meta { padding: 10px 12px; }
+  .sw .name { font-size: 13px; font-weight: 600; color: var(--ink); display: block; }
+  .sw .hex { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); }
+  .sw .use { font-size: 12px; color: var(--ink-dim); display: block; margin-top: 4px; line-height: 1.4; }
+
+  .brand-hero {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    margin: 24px 0;
+  }
+  @media (min-width: 700px) { .brand-hero { grid-template-columns: 1.2fr 1fr 1fr; } }
+  .brand-hero > div { padding: 28px 24px; min-height: 132px; display: flex; flex-direction: column; justify-content: flex-end; }
+  .brand-hero .hex-lg { font-family: var(--mono); font-size: 20px; letter-spacing: 0.04em; }
+  .brand-hero .role { font-size: 13px; opacity: 0.82; margin-top: 4px; }
+
+  /* Tables */
+  .tbl-scroll { overflow-x: auto; margin: 20px 0; }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 14px; }
+  th {
+    text-align: left;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-weight: 700;
+    padding: 0 16px 10px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  td { padding: 11px 16px 11px 0; vertical-align: top; color: var(--ink-dim); }
+  tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.018); }
+  td:first-child { color: var(--ink); font-weight: 500; }
+  td .mono { color: var(--ink); }
+
+  /* Type specimens */
+  .spec { border-bottom: 1px solid var(--line-soft); padding: 18px 0; display: grid; gap: 6px; }
+  .spec:last-child { border-bottom: 0; }
+  .spec .label { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); letter-spacing: 0.04em; }
+  .s-xl { font-size: 48px; font-weight: 700; line-height: 1.16; letter-spacing: -0.02em; }
+  .s-lg { font-size: 32px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; }
+  .s-body-lg { font-size: 18px; font-weight: 400; line-height: 1.55; }
+  .s-body { font-size: 16px; font-weight: 400; line-height: 1.5; }
+  .s-mono { font-family: var(--mono); font-size: 14px; font-weight: 500; letter-spacing: 0.05em; }
+  .s-caps { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+  @media (max-width: 640px) { .s-xl { font-size: 32px; } .s-lg { font-size: 24px; } }
+
+  /* Logo */
+  .logo-row { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 20px 0; }
+  @media (min-width: 700px) { .logo-row { grid-template-columns: repeat(3, 1fr); } }
+  .logo-cell {
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r);
+    padding: 28px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 120px;
+  }
+  .logo-cell img { max-width: 150px; max-height: 60px; height: auto; display: block; }
+  .plate { background: #ffffff; padding: 0.3rem 0.4rem; border-radius: 3px; display: inline-flex; }
+  .cap { font-size: 12px; color: var(--ink-dim); text-align: center; margin-top: 8px; line-height: 1.4; }
+
+  /* Components */
+  .demo {
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-lg);
+    background: var(--slate);
+    padding: 24px;
+    margin: 16px 0 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+  .btn {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 9px 18px;
+    border-radius: var(--r);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), background 0.15s, border-color 0.15s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--brand); color: #ffffff; }
+  .btn-primary:hover { background: var(--brand-hover); }
+  .btn-secondary { background: transparent; color: var(--ink); border-color: var(--line); }
+  .btn-secondary:hover { border-color: var(--primary); }
+  .btn-danger { background: #DC2626; color: #ffffff; }
+
+  .field { display: grid; gap: 6px; min-width: 220px; }
+  .field label { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .field input {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 9px 12px;
+    background: var(--bg-deep);
+    border: 1px solid #3F4C6B;
+    border-radius: var(--r);
+    color: var(--ink);
+  }
+  .field input::placeholder { color: #8794a0; }
+  .field input:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 2px rgba(239, 83, 80, 0.2);
+  }
+
+  .status { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 13px; letter-spacing: 0.04em; color: var(--ink); }
+  .dot { width: 7px; height: 7px; border-radius: 999px; flex: none; }
+
+  .card-demo {
+    background: var(--slate);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-lg);
+    padding: 20px 22px;
+    max-width: 340px;
+  }
+  .card-demo .hd { font-weight: 600; padding-bottom: 12px; border-bottom: 1px solid var(--line-soft); margin-bottom: 12px; }
+  .card-demo p { margin: 0; font-size: 14px; }
+
+  /* Do / Don't */
+  .rules { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 20px 0; }
+  @media (min-width: 800px) { .rules { grid-template-columns: 1fr 1fr; } }
+  .rule-col { border: 1px solid var(--line-soft); border-radius: var(--r-lg); padding: 22px 24px; }
+  .rule-col.do { border-top: 2px solid var(--ok); }
+  .rule-col.dont { border-top: 2px solid var(--brand); }
+  .rule-col h4 { margin: 0 0 12px; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .rule-col.do h4 { color: var(--ok); }
+  .rule-col.dont h4 { color: var(--brand); }
+  .rule-col ul { margin: 0; padding-left: 18px; }
+  .rule-col li { color: var(--ink-dim); font-size: 14px; margin-bottom: 9px; line-height: 1.5; }
+
+  footer { border-top: 1px solid var(--line-soft); margin-top: 56px; padding-top: 24px; font-size: 13px; color: var(--ink-dim); }
+  a { color: var(--primary); }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <h1>Task Board Brand Kit</h1>
+      <p class="lead">The visual reference for anything produced for the Redbelly DAO Community Task Board: the board itself, task graphics, social assets, and contributor deliverables.</p>
+    </div>
+    <div>
+      <div class="logo-cell" style="min-height:0;padding:20px">
+        <span class="plate"><img src="/brand/dao-logo.png" alt="Redbelly DAO logo"></span>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Scope, and what this is not</h2>
+    <p>Every value here is read from the live application at <code>app/globals.css</code>, not from a mood board. If a token changes in the app, it changes here. That is the point: contributors and the board should not drift apart.</p>
+    <div class="note">
+      <p><strong>This is the Task Board brand, not Redbelly Network's corporate brand.</strong> It is built to sit consistently alongside Redbelly Network's own identity, but it is not a substitute for it and it does not govern Redbelly Network material. If a deliverable is going out under the Redbelly Network name rather than the DAO Task Board, check with the core team first.</p>
+    </div>
+    <p>The design language is called <strong>Kinetic Consensus</strong>. It reads as corporate modern with a technical edge: deep slate surfaces, one high-impact red, generous negative space, monospace reserved for anything machine-generated. Industrial and robust, but approachable enough for a community board.</p>
+  </section>
+
+  <section>
+    <h2>Colour</h2>
+    <p>One accent, used everywhere, never joined by a second. The red is the only saturated colour in the system and it is reserved for high-impact actions, brand moments, and critical status. Everything else is a slate neutral.</p>
+
+    <div class="brand-hero">
+      <div style="background:#EF5350;color:#ffffff">
+        <span class="hex-lg">#EF5350</span>
+        <span class="role">Brand red. The single accent. Primary buttons, brand moments, the mark.</span>
+      </div>
+      <div style="background:#0f181d;color:#e4ebf0;border-left:1px solid #27323a">
+        <span class="hex-lg">#0f181d</span>
+        <span class="role">Base surface. Never pure black.</span>
+      </div>
+      <div style="background:#e4ebf0;color:#16202A;border-left:1px solid #27323a">
+        <span class="hex-lg">#e4ebf0</span>
+        <span class="role">Primary text on dark.</span>
+      </div>
+    </div>
+
+    <h3>Dark surfaces, lowest to highest</h3>
+    <div class="swatches">
+      <div class="sw"><span class="chip" style="background:#0a1216"></span><span class="meta"><span class="name">container lowest</span><span class="hex">#0a1216</span><span class="use">Wells, inset areas</span></span></div>
+      <div class="sw"><span class="chip" style="background:#0f181d"></span><span class="meta"><span class="name">surface / background</span><span class="hex">#0f181d</span><span class="use">Page base</span></span></div>
+      <div class="sw"><span class="chip" style="background:#121b20"></span><span class="meta"><span class="name">background deep</span><span class="hex">#121b20</span><span class="use">Lifted base so cards separate</span></span></div>
+      <div class="sw"><span class="chip" style="background:#1e2a31"></span><span class="meta"><span class="name">surface slate</span><span class="hex">#1e2a31</span><span class="use">Cards, panels, modals</span></span></div>
+      <div class="sw"><span class="chip" style="background:#1b252a"></span><span class="meta"><span class="name">container</span><span class="hex">#1b252a</span><span class="use">Nested fills</span></span></div>
+      <div class="sw"><span class="chip" style="background:#27323a"></span><span class="meta"><span class="name">container high</span><span class="hex">#27323a</span><span class="use">Hairlines, soft dividers</span></span></div>
+      <div class="sw"><span class="chip" style="background:#3a4650"></span><span class="meta"><span class="name">outline variant</span><span class="hex">#3a4650</span><span class="use">Borders</span></span></div>
+      <div class="sw"><span class="chip" style="background:#93a4ae"></span><span class="meta"><span class="name">outline</span><span class="hex">#93a4ae</span><span class="use">Secondary text, muted labels</span></span></div>
+    </div>
+
+    <h3>Accent and state</h3>
+    <div class="swatches">
+      <div class="sw"><span class="chip" style="background:#EF5350"></span><span class="meta"><span class="name">brand</span><span class="hex">#EF5350</span><span class="use">Primary action fill</span></span></div>
+      <div class="sw"><span class="chip" style="background:#ffb3ae"></span><span class="meta"><span class="name">primary (dark)</span><span class="hex">#ffb3ae</span><span class="use">Accent text and links on dark</span></span></div>
+      <div class="sw"><span class="chip" style="background:#86EFAC"></span><span class="meta"><span class="name">ok</span><span class="hex">#86EFAC</span><span class="use">Approved, complete, paid</span></span></div>
+      <div class="sw"><span class="chip" style="background:#FCD34D"></span><span class="meta"><span class="name">warn</span><span class="hex">#FCD34D</span><span class="use">Pending, revision requested</span></span></div>
+    </div>
+
+    <div class="note">
+      <p><strong>The accent flips value between themes.</strong> On dark, accent text is <code>#ffb3ae</code>, because <code>#EF5350</code> does not carry enough contrast for small text on a slate ground. On light, it darkens to <code>#B3272A</code> for the same reason. The solid fill <code>#EF5350</code> stays constant in both. Get this wrong and the accent either disappears or shouts.</p>
+    </div>
+
+    <h3>Light counterpart</h3>
+    <p>The board ships a light theme. It is the same brand, not a second one.</p>
+    <div class="swatches">
+      <div class="sw"><span class="chip" style="background:#F6F7F8"></span><span class="meta"><span class="name">surface</span><span class="hex">#F6F7F8</span><span class="use">Page base</span></span></div>
+      <div class="sw"><span class="chip" style="background:#FFFFFF;border-bottom:1px solid #DADDE1"></span><span class="meta"><span class="name">surface slate</span><span class="hex">#FFFFFF</span><span class="use">Cards</span></span></div>
+      <div class="sw"><span class="chip" style="background:#16202A"></span><span class="meta"><span class="name">on surface</span><span class="hex">#16202A</span><span class="use">Primary text</span></span></div>
+      <div class="sw"><span class="chip" style="background:#B3272A"></span><span class="meta"><span class="name">primary (light)</span><span class="hex">#B3272A</span><span class="use">Accent text and links</span></span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Typography</h2>
+    <p><strong>Be Vietnam Pro</strong> carries every heading and all body copy. <strong>JetBrains Mono</strong> is functional only: wallet addresses, transaction hashes, task IDs, timestamps, scores, and any other machine-generated value. Never use the mono for prose because it looks technical.</p>
+    <div class="note">
+      <p>Both are open-licence and free. Be Vietnam Pro and JetBrains Mono are both on Google Fonts. If a contributor's tool cannot embed them, the fallback order is the system UI sans and the system monospace, in that order. Never substitute a serif, and never substitute Inter as a stand-in.</p>
+    </div>
+
+    <div class="spec"><span class="label">headline-xl / 48 / 700 / -0.02em</span><span class="s-xl">Cycle 2 is open</span></div>
+    <div class="spec"><span class="label">headline-lg / 32 / 600 / -0.01em</span><span class="s-lg">Submission under review</span></div>
+    <div class="spec"><span class="label">body-lg / 18 / 400 / 1.55</span><span class="s-body-lg">Read the full task before you claim a slot. Claims expire after five days.</span></div>
+    <div class="spec"><span class="label">body-md / 16 / 400 / 1.5</span><span class="s-body">Every deliverable listed on a task is required. A submission missing one is incomplete, not partial.</span></div>
+    <div class="spec"><span class="label">label-mono / 14 / 500 / 0.05em</span><span class="s-mono">TASK-19 &nbsp; 0xb45ffb51984d626ee758b336c61cf20990c6bf13 &nbsp; 31/35</span></div>
+    <div class="spec"><span class="label">label-caps / 12 / 700 / 0.1em</span><span class="s-caps">Documentation</span></div>
+
+    <h3>Rules</h3>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Rule</th><th>Value</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Body line height</td><td class="mono">1.5</td><td>Governance and technical documents get read end to end. Tight leading fatigues.</td></tr>
+          <tr><td>Line length</td><td class="mono">65 to 75 characters</td><td>Anything wider loses the reader between lines.</td></tr>
+          <tr><td>Minimum body size on mobile</td><td class="mono">16px</td><td>Most board traffic arrives from a Discord link on a phone.</td></tr>
+          <tr><td>Heading emphasis</td><td>Weight and colour</td><td>Control hierarchy with weight, not raw scale. No oversized headings for their own sake.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Logo</h2>
+    <p>The mark is dark artwork. On the board's deep slate background it cannot sit bare, so it is always placed on a white plate. This is not a stylistic preference, it is the only way the mark reads.</p>
+
+    <div class="logo-row">
+      <div>
+        <div class="logo-cell" style="background:#0f181d">
+          <span class="plate"><img src="/brand/dao-logo.png" alt="Logo on a white plate over the dark surface"></span>
+        </div>
+        <p class="cap">Correct. White plate, <code>0.3rem 0.4rem</code> padding, 3px radius.</p>
+      </div>
+      <div>
+        <div class="logo-cell" style="background:#F6F7F8">
+          <img src="/brand/dao-logo.png" alt="Logo on a light background">
+        </div>
+        <p class="cap">Correct on light. No plate needed.</p>
+      </div>
+      <div>
+        <div class="logo-cell" style="background:#EF5350">
+          <span class="plate"><img src="/brand/dao-logo.png" alt="Logo on a white plate over the brand red"></span>
+        </div>
+        <p class="cap">On the brand red, keep the plate.</p>
+      </div>
+    </div>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Constraint</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Clear space</td><td>Minimum the height of the mark's tallest letterform on all four sides. Nothing enters that box.</td></tr>
+          <tr><td>Minimum width</td><td><span class="mono">88px</span> on screen. Below that, use the favicon instead.</td></tr>
+          <tr><td>Plate</td><td><span class="mono">#ffffff</span>, padding <span class="mono">0.3rem 0.4rem</span>, radius <span class="mono">3px</span>. Required on any surface darker than <span class="mono">#DADDE1</span>.</td></tr>
+          <tr><td>Master file</td><td><span class="mono">taskboard-platform/public/dao-logo.png</span>, copied alongside this page.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <p>Never recolour, stretch, rotate, add a shadow to, or place the mark over a busy photograph. If it will not read, use the wordmark in Be Vietnam Pro 700 instead.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Shape, spacing, depth</h2>
+    <p>One radius scale, applied consistently. Soft enough to feel modern, square enough to stay architectural. Pill shapes are not used for primary buttons.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Token</th><th>Value</th><th>Applies to</th></tr></thead>
+        <tbody>
+          <tr><td>radius base</td><td class="mono">4px</td><td>Buttons, inputs, chips, small cards</td></tr>
+          <tr><td>radius lg</td><td class="mono">8px</td><td>Panels, modals, large containers</td></tr>
+          <tr><td>radius full</td><td class="mono">9999px</td><td>Status dots and avatars only</td></tr>
+          <tr><td>spacing base</td><td class="mono">4px</td><td>All component padding steps off this</td></tr>
+          <tr><td>gutter</td><td class="mono">24px</td><td>Grid columns</td></tr>
+          <tr><td>margin, mobile</td><td class="mono">16px</td><td>Strict. Never less.</td></tr>
+          <tr><td>margin, desktop</td><td class="mono">64px</td><td>Section separation uses 48, 64, 80</td></tr>
+          <tr><td>max width</td><td class="mono">1280px</td><td>Content column</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Depth is tonal, not shadowed. A card sits above the page because it is a lighter slate, with a 1px border a shade lighter than its own fill. Heavy drop shadows are not part of this system. Modals and navigation may use a backdrop blur of 12px to 20px over a semi transparent dark fill.</p>
+  </section>
+
+  <section>
+    <h2>Components</h2>
+
+    <h3>Buttons</h3>
+    <div class="demo">
+      <button class="btn btn-primary">Submit work</button>
+      <button class="btn btn-secondary">Cancel</button>
+      <button class="btn btn-danger">Delete task</button>
+    </div>
+    <p>Primary is a solid brand fill with white text. Secondary is a ghost with a neutral border that picks up the accent on hover. Destructive uses <code>#DC2626</code>, which is the one place a red other than the brand red is allowed, so that "delete" never reads as "confirm". Labels are one to three words and never wrap.</p>
+
+    <h3>Inputs</h3>
+    <div class="demo">
+      <span class="field">
+        <label for="d1">Deliverable link</label>
+        <input id="d1" placeholder="https://">
+      </span>
+      <span class="field">
+        <label for="d2">Focused state</label>
+        <input id="d2" value="TASK-19" style="border-color:#EF5350;box-shadow:0 0 0 2px rgba(239,83,80,0.2)">
+      </span>
+    </div>
+    <p>Label above the input, always. Never use a placeholder as the label. Focus takes the accent border plus a 2px aura. Error text sits below the field, not beside it.</p>
+
+    <h3>Status</h3>
+    <div class="demo">
+      <span class="status"><span class="dot" style="background:#86EFAC"></span>Approved</span>
+      <span class="status"><span class="dot" style="background:#FCD34D"></span>Under review</span>
+      <span class="status"><span class="dot" style="background:#EF5350"></span>Rejected</span>
+      <span class="status"><span class="dot" style="background:#93a4ae"></span>Withdrawn</span>
+    </div>
+    <p>Status is a small dot plus a monospace label. It is not a filled pill. This keeps dense lists calm, which matters on the submissions and admin views where dozens stack vertically.</p>
+
+    <h3>Cards</h3>
+    <div class="demo">
+      <div class="card-demo">
+        <div class="hd">Staking and Voting Power Explainer</div>
+        <p>Locked versus unlocked positions, delegation timelines, and which wallet counts for Snapshot.</p>
+      </div>
+    </div>
+    <p>Card header separated from body by a 1px rule. Use a card only when elevation communicates real hierarchy. Otherwise group with a top border or plain negative space.</p>
+  </section>
+
+  <section>
+    <h2>Social and graphic assets</h2>
+    <p>Sizes for anything produced for the DAO's channels. Deliver exports plus editable source files, always.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Asset</th><th>Dimensions</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>X single image post</td><td class="mono">1600 x 900</td><td>16:9. Keep text inside a 5% safe margin.</td></tr>
+          <tr><td>X square post</td><td class="mono">1080 x 1080</td><td>Better for dense reference graphics such as a venue list.</td></tr>
+          <tr><td>X header</td><td class="mono">1500 x 500</td><td>The centre 1500 x 360 is the only reliably visible band.</td></tr>
+          <tr><td>Discord embed image</td><td class="mono">1200 x 630</td><td>Also the correct Open Graph size for any linked page.</td></tr>
+          <tr><td>Avatar</td><td class="mono">512 x 512</td><td>Mark on a white plate, centred, with full clear space.</td></tr>
+          <tr><td>Export format</td><td class="mono">PNG</td><td>SVG where the asset is pure vector. No JPEG for anything containing text.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <p>Graphics that carry facts which expire, such as a list of exchanges or a set of chain IDs, must carry a dated "last verified" line in the artwork itself. A screenshot outlives the post it was attached to.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Voice and copy</h2>
+    <p>The board's writing is first person, direct, and plain. It owns mistakes rather than smoothing them over. These are hard rules for anything published under the DAO Task Board name.</p>
+    <div class="rules">
+      <div class="rule-col do">
+        <h4>Do</h4>
+        <ul>
+          <li>Use plain hyphens. Write two sentences where you were reaching for a longer pause.</li>
+          <li>Say the number. "Five days", not "a few days".</li>
+          <li>Name the thing that went wrong and what happens next.</li>
+          <li>Cite the rule number when you invoke a rule, and pull it from the board, not from an older draft.</li>
+          <li>Lead with the answer, then the reasoning.</li>
+        </ul>
+      </div>
+      <div class="rule-col dont">
+        <h4>Do not</h4>
+        <ul>
+          <li>No em dashes or en dashes. Anywhere. Not in copy, not in graphics, not in commit messages.</li>
+          <li>No emoji. The board's own checkmark and cross glyphs are the only sanctioned symbols.</li>
+          <li>No filler verbs. Not "elevate", "seamless", "unleash", "revolutionize".</li>
+          <li>No corporate hedging. If a decision is not final, say what would make it final.</li>
+          <li>No second accent colour introduced to make something feel important.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Contrast</h2>
+    <p>Every pairing below meets WCAG AA. Anything not listed here has not been checked, so check it before shipping.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Foreground</th><th>Background</th><th>Ratio</th><th>Use</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">#e4ebf0</td><td class="mono">#0f181d</td><td class="mono">14.92:1</td><td>Body text on dark. Passes AAA.</td></tr>
+          <tr><td class="mono">#b8c4cc</td><td class="mono">#0f181d</td><td class="mono">10.10:1</td><td>Secondary text on dark.</td></tr>
+          <tr><td class="mono">#93a4ae</td><td class="mono">#0f181d</td><td class="mono">6.98:1</td><td>Muted labels. Do not go below this grey.</td></tr>
+          <tr><td class="mono">#93a4ae</td><td class="mono">#1e2a31</td><td class="mono">5.70:1</td><td>The same muted grey on a card. Still AA, with less headroom.</td></tr>
+          <tr><td class="mono">#ffb3ae</td><td class="mono">#0f181d</td><td class="mono">10.53:1</td><td>Accent text and links on dark.</td></tr>
+          <tr><td class="mono">#ffffff</td><td class="mono">#EF5350</td><td class="mono">3.49:1</td><td>Primary button label. Large text only, 18px and up or 14px bold.</td></tr>
+          <tr><td class="mono">#16202A</td><td class="mono">#F6F7F8</td><td class="mono">15.37:1</td><td>Body text on light.</td></tr>
+          <tr><td class="mono">#B3272A</td><td class="mono">#F6F7F8</td><td class="mono">6.04:1</td><td>Accent text on light.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <p>The white on brand red pairing is the one tight spot in the system at 3.5:1. It is fine for a button label at 14px bold or larger, which is how the board uses it. It is not fine for body copy, captions, or small print on a red field. If you need small text on red, invert: dark text on <code>#ffdad7</code>.</p>
+    </div>
+  </section>
+
+  <footer>
+    <p>Values read from <code>app/globals.css</code> in the Task Board repository. If the app and this page disagree, the app is right and this page needs updating.</p>
+  </footer>
+
+</div>
+
+</body>
+</html>
