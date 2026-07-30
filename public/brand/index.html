@@ -101,13 +101,17 @@
   .swatches { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 20px 0; }
   @media (min-width: 700px) { .swatches { grid-template-columns: repeat(4, 1fr); } }
   .sw {
-    border: 1px solid var(--line-soft);
+    /* --line, not --line-soft. The kit's own token table names #3a4650 as the border colour, and --line-soft
+       sits too close to the card fill to read as an edge at all. */
+    border: 1px solid var(--line);
     border-radius: var(--r);
     overflow: hidden;
     background: var(--slate);
   }
-  .sw .chip { height: 84px; display: block; }
-  .sw .meta { padding: 10px 12px; }
+  .sw .chip { height: 84px; display: block; border-bottom: 1px solid var(--line); }
+  /* Must be a block. The name and use lines inside are blocks, and block children of an inline box escape it,
+     which drops the horizontal padding and leaves the text flush against the card edge. */
+  .sw .meta { display: block; padding: 12px; }
   .sw .name { font-size: 13px; font-weight: 600; color: var(--ink); display: block; }
   .sw .hex { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); }
   .sw .use { font-size: 12px; color: var(--ink-dim); display: block; margin-top: 4px; line-height: 1.4; }
