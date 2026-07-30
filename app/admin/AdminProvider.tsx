@@ -14,7 +14,7 @@ import { notifyAppealDecided } from "@/lib/notifications";
 import { Appeal } from "@/lib/appeals";
 import { refundNotSelectedCaps } from "@/lib/submissions";
 
-export type AdminTabValue = "submissions" | "tasks" | "users" | "ledger" | "reviewers" | "audit" | "feedback" | "suggestions" | "appeals";
+export type AdminTabValue = "submissions" | "tasks" | "users" | "ledger" | "reviewers" | "audit" | "feedback" | "suggestions" | "appeals" | "deletions";
 
 export const TASK_CATEGORIES: TaskCategory[] = ["developer", "design", "research", "documentation", "content"];
 export const SUB_STATUS_OPTIONS = ["all", "under_review", "approved", "rejected", "revision_requested", "withdrawn"] as const;
@@ -64,6 +64,8 @@ interface AdminCtxValue {
   reviewerStats: any[]; selectedReviewerSubs: any[];
   filteredSubmissions: any[]; filteredUsers: any[]; stats: any[];
   appeals: any[]; openAppeals: any[]; decidedAppeals: any[];
+  deletionRequests: any[]; openDeletionRequests: any[];
+  decideDeletionRequest: (req: any, outcome: "completed" | "declined", declineReason?: string) => Promise<void>;
   formDeliverables: string[]; formBenchmarks: string[]; formFailure: string[];
   formTechnicalReqs: string[]; formInfrastructure: string[];
   [key: string]: any;
@@ -106,6 +108,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [suggestionLoading, setSuggestionLoading] = useState(false);
 
   const [appeals, setAppeals] = useState<any[]>([]);
+  const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
   const [appealNotes, setAppealNotes] = useState<Record<string, string>>({});
 
   const [submissionSearch, setSubmissionSearch] = useState("");
@@ -186,6 +189,51 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     });
     return () => unsub();
   }, [user, appUser]);
+
+  // Deletion requests (T&Cs cl 4.4), live for the same reason as appeals.
+  useEffect(() => {
+    if (!user || appUser?.role !== "admin") return;
+    const unsub = onSnapshot(query(collection(db, "deletionRequests"), orderBy("createdAt", "desc")), (snap) => {
+      setDeletionRequests(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, [user, appUser]);
+
+  const openDeletionRequests = deletionRequests.filter((r) => r.status === "open");
+
+  // Completing a request actually deletes the submission. The rules refuse to remove anything with
+  // paymentProcessed, so a paid submission cannot be destroyed here even by mistake; the request is
+  // declined instead, with the reason shown to the contributor.
+  const decideDeletionRequest = async (req: any, outcome: "completed" | "declined", declineReason?: string) => {
+    if (outcome === "completed") {
+      const subSnap = await getDoc(doc(db, "submissions", req.submissionId));
+      if (subSnap.exists() && subSnap.data()?.paymentProcessed) {
+        await updateDoc(doc(db, "deletionRequests", req.id), {
+          status: "declined",
+          declineReason: "This submission has been paid, so it stays on the record.",
+          decidedAt: serverTimestamp(),
+          decidedBy: user?.uid,
+        });
+        return;
+      }
+      await deleteDoc(doc(db, "submissions", req.submissionId));
+      setSubmissions((prev) => prev.filter((s) => s.id !== req.submissionId));
+    }
+
+    await updateDoc(doc(db, "deletionRequests", req.id), {
+      status: outcome,
+      declineReason: outcome === "declined" ? (declineReason?.trim() || null) : null,
+      decidedAt: serverTimestamp(),
+      decidedBy: user?.uid,
+    });
+
+    await logAdminAction("deletion_request_decided", {
+      requestId: req.id,
+      submissionId: req.submissionId,
+      taskId: req.taskId ?? null,
+      outcome,
+    });
+  };
 
   const openAppeals = appeals.filter((a) => a.status === "open");
   const decidedAppeals = appeals.filter((a) => a.status !== "open");
@@ -924,6 +972,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     auditLogs, auditLoading, feedbackItems, feedbackLoading, resolvingFeedbackId, resolveFeedback,
     suggestionItems, suggestionLoading, refreshSuggestions, updateSuggestionStatus,
     appeals, openAppeals, decidedAppeals, openAppealTaskIds, appealNotes, setAppealNote, decideAppeal,
+    deletionRequests, openDeletionRequests, decideDeletionRequest,
     submissionSearch, setSubmissionSearch, submissionStatusFilter, setSubmissionStatusFilter,
     submissionCycleFilter, setSubmissionCycleFilter, submissionCyclesPresent,
     userSearch, setUserSearch,

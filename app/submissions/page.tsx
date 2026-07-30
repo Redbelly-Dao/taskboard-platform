@@ -1,20 +1,26 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import AppShell, { PageHeader } from "@/components/AppShell";
 import DataTable, { Column } from "@/components/ui/DataTable";
 import { getSubmissionStatusLabel, displayName } from "@/lib/tasks";
+import { deletionBlockedReason, DELETION_REASON_MAX, getDeletionStatusLabel } from "@/lib/deletion-requests";
+import Modal from "@/components/ui/Modal";
 import Link from "next/link";
 
 export default function SubmissionsPage() {
-  const { user, loading } = useAuth();
+  const { user, appUser, loading } = useAuth();
   const router = useRouter();
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [subLoading, setSubLoading] = useState(true);
   const [filterCycle, setFilterCycle] = useState<string>("all");
+  // T&Cs cl 4.4. Keyed by submission id so the button can show state per row.
+  const [deletionRequests, setDeletionRequests] = useState<Record<string, any>>({});
+  const [openAppealIds, setOpenAppealIds] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -31,6 +37,26 @@ export default function SubmissionsPage() {
       setSubLoading(false);
     });
     return () => unsub();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsubDel = onSnapshot(
+      query(collection(db, "deletionRequests"), where("contributorId", "==", user.uid)),
+      (snap) => {
+        const map: Record<string, any> = {};
+        snap.docs.forEach((d) => { map[d.id] = { id: d.id, ...d.data() }; });
+        setDeletionRequests(map);
+      },
+      () => setDeletionRequests({}),
+    );
+    // An open appeal blocks deletion until it is decided, so the button needs to know about them.
+    const unsubAppeals = onSnapshot(
+      query(collection(db, "appeals"), where("contributorId", "==", user.uid)),
+      (snap) => setOpenAppealIds(new Set(snap.docs.filter((d) => d.data().status === "open").map((d) => d.id))),
+      () => setOpenAppealIds(new Set()),
+    );
+    return () => { unsubDel(); unsubAppeals(); };
   }, [user]);
 
   if (loading || subLoading) return (
@@ -97,6 +123,30 @@ export default function SubmissionsPage() {
       ),
     },
     {
+      key: "rights",
+      header: "Your copy",
+      cell: (s) => {
+        const req = deletionRequests[s.id];
+        if (req) {
+          return (
+            <span className={`text-xs ${req.status === "declined" ? "text-warn" : "text-outline"}`}>
+              {req.status === "open" ? "Deletion requested" : getDeletionStatusLabel(req.status)}
+            </span>
+          );
+        }
+        const blocked = deletionBlockedReason(s, openAppealIds.has(s.id));
+        if (blocked) return <span className="text-xs text-outline">-</span>;
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); setDeleteTarget(s); }}
+            className="text-xs text-outline hover:text-error font-semibold whitespace-nowrap"
+          >
+            Request deletion
+          </button>
+        );
+      },
+    },
+    {
       key: "view",
       header: "",
       hideOnMobile: true,
@@ -141,6 +191,79 @@ export default function SubmissionsPage() {
           />
         </>
       )}
+
+      {deleteTarget && (
+        <DeletionRequestModal
+          sub={deleteTarget}
+          wallet={appUser?.walletAddress ?? null}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
     </AppShell>
+  );
+}
+
+// T&Cs cl 4.4. Files the request; an admin does the deleting.
+// Deliberately blunt about what is and is not removed, because the one thing worse than not offering this
+// is letting someone believe their work vanished from the internet when the deliverable link is public.
+function DeletionRequestModal({ sub, wallet, onClose }: { sub: any; wallet: string | null; onClose: () => void }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await setDoc(doc(db, "deletionRequests", sub.id), {
+        submissionId: sub.id,
+        contributorId: sub.contributorId,
+        walletAddress: wallet,
+        taskId: sub.taskId ?? null,
+        taskTitle: sub.taskTitle ?? null,
+        reason: reason.trim() || null,
+        status: "open",
+        createdAt: serverTimestamp(),
+      });
+      onClose();
+    } catch {
+      setError("Could not file the request. Check your connection and try again.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} title="Request deletion">
+      <p className="text-sm text-on-surface mb-3">
+        <span className="mono text-xs">{sub.taskId}</span> {sub.taskTitle}
+      </p>
+      <p className="text-xs text-outline leading-relaxed mb-4">
+        Your submission was not selected, so no rights transferred and the work is yours. Asking for deletion
+        removes it and any uploaded file from the board. An admin actions it, usually within a cycle. What stays
+        is the fact that a submission was made and its rubric scores, because appeals and the audit log point at
+        them. Nothing you submitted is published either way.
+      </p>
+
+      <label className="label" htmlFor="deletion-reason">Reason (optional)</label>
+      <textarea
+        id="deletion-reason"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        rows={3}
+        maxLength={DELETION_REASON_MAX}
+        className="input resize-none"
+        placeholder="Not required. Helpful if something specific prompted this."
+      />
+      <p className="text-xs text-outline mt-1">{reason.length}/{DELETION_REASON_MAX}</p>
+
+      {error && <p className="text-xs text-error mt-2">{error}</p>}
+
+      <div className="flex justify-end gap-2 mt-4">
+        <button onClick={onClose} className="btn-secondary text-xs">Cancel</button>
+        <button onClick={submit} disabled={busy} className="btn-primary text-xs">
+          {busy ? "Filing…" : "Request deletion"}
+        </button>
+      </div>
+    </Modal>
   );
 }

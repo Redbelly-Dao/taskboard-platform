@@ -219,6 +219,28 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && role() == "admin";
     }
 
+    // Deletion requests (T&Cs cl 4.4). Doc id is the submission id, which enforces one request per submission
+    // for free, same trick as appeals. A contributor may only ask about their own submission, and only while
+    // filing it ("open"); single-doc get() on create is safe here, same reasoning as the appeal create rule.
+    // The request never deletes anything: only an admin can act on it, and the submissions delete rule still
+    // refuses to remove anything with paymentProcessed. Paid work stays on the record either way.
+    match /deletionRequests/{submissionId} {
+      allow create: if request.auth != null
+        && submissionId == request.resource.data.submissionId
+        && request.resource.data.contributorId == request.auth.uid
+        && request.resource.data.status == "open"
+        && get(/databases/$(database)/documents/submissions/$(submissionId)).data.contributorId == request.auth.uid
+        && get(/databases/$(database)/documents/submissions/$(submissionId)).data.get("paymentProcessed", false) == false;
+      // resource == null lets the contributor's live listener attach before any request exists;
+      // reading a missing doc otherwise fails the rule outright.
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.contributorId == request.auth.uid ||
+        role() == "admin"
+      );
+      allow update, delete: if request.auth != null && role() == "admin";
+    }
+
     // Admin audit log: admins read/write only
     match /adminAuditLog/{logId} {
       allow read, write: if request.auth != null && role() == "admin";

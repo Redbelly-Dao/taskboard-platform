@@ -17,6 +17,7 @@ const NAV = [
   { seg: "feedback", label: "Feedback" },
   { seg: "suggestions", label: "Task Suggestions" },
   { seg: "appeals", label: "Appeals" },
+  { seg: "deletions", label: "Deletion Requests" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
