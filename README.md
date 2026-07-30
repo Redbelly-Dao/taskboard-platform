@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Redbelly DAO Task Board
 
-## Getting Started
+The community task board for Redbelly DAO. Contributors browse open tasks, submit deliverables against a published rubric, reviewers score and decide, and the ledger records what was paid to whom.
 
-First, run the development server:
+## How it fits together
+
+Work is organised into cycles. A cycle has an open date, a close date, a freeze date after which no new submissions are accepted, a last revision date, and a pay date. Those dates live in Firestore under `config/cycle` and drive every deadline in the app.
+
+Each task carries the problem statement, technical requirements, deliverables, quality benchmarks and failure criteria, so a contributor can start from the task page alone. Submissions are capped per task. A reviewer can accept, reject, or request a revision with a deadline attached.
+
+`config/board` holds a global pause switch. When it is set, everyone sees a maintenance notice instead of the board.
+
+## Routes
+
+- `/` and `/tasks` browse and open tasks
+- `/submissions` a contributor's own submissions and their state
+- `/dashboard` contributor overview
+- `/reviewer` the review queue and scoring
+- `/admin` task authoring, submission decisions, payments, feedback triage
+- `/ledger` the public record of completed and paid work
+- `/rules` the participation rules
+- `/api/cron/sweep` the daily deadline sweep
+
+## Stack
+
+Next.js 16 on the App Router, React 19, Tailwind 4, TypeScript. Firestore for data, Firebase Auth for accounts, UploadThing for file attachments, wagmi and viem for wallet address capture.
+
+## Running it locally
+
+Requires Node 20 or newer.
 
 ```bash
+npm install
+cp .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Fill in `.env.local` from the Firebase console before the app will start. The comments in `.env.example` say where each value comes from.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+For server side Firebase access you can either set the three `FIREBASE_ADMIN_*` variables, or drop a `service-account-key.json` at the project root for local work. That file is gitignored and must never be committed.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scheduled work
 
-## Learn More
+`app/api/cron/sweep` runs once a day at 03:00 UTC, scheduled in `vercel.json`. It auto-rejects revisions that missed their deadline, sends the day three reminder before a revision deadline, and flags overdue reviews. Everything it writes is guarded by a flag or a status check, so a re-run is a no-op on anything already handled.
 
-To learn more about Next.js, take a look at the following resources:
+The route requires `CRON_SECRET`. Without it every request gets a 401 and the sweep silently stops running, which means deadlines stop being enforced. If deadline handling ever looks stuck, check that variable first.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Firestore
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Security rules are in `firestore.rules` and composite indexes in `firestore.indexes.json`. Both deploy with the Firebase CLI:
 
-## Deploy on Vercel
+```bash
+firebase deploy --only firestore:rules,firestore:indexes
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The rules are the real access boundary. Client side checks exist for the sake of the interface, but anything that must hold is enforced in the rules as well. Paid submissions in particular can never be deleted, by anyone, including an admin.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deployment
+
+Deployed on Vercel from `main`. Pushing to `main` ships to production.

@@ -38,8 +38,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files. The example is placeholders only and is meant to ship.
 .env*
+!.env.example
 
 # vercel
 .vercel
