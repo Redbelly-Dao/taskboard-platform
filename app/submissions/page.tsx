@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, query, where, onSnapshot, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import AppShell, { PageHeader } from "@/components/AppShell";
@@ -9,6 +9,8 @@ import DataTable, { Column } from "@/components/ui/DataTable";
 import { getSubmissionStatusLabel, displayName } from "@/lib/tasks";
 import { deletionBlockedReason, DELETION_REASON_MAX, getDeletionStatusLabel } from "@/lib/deletion-requests";
 import Modal from "@/components/ui/Modal";
+import RightsSignature from "@/components/RightsSignature";
+import type { RightsRecord } from "@/lib/rights";
 import Link from "next/link";
 
 export default function SubmissionsPage() {
@@ -21,6 +23,7 @@ export default function SubmissionsPage() {
   const [deletionRequests, setDeletionRequests] = useState<Record<string, any>>({});
   const [openAppealIds, setOpenAppealIds] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [signTarget, setSignTarget] = useState<any>(null);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -126,6 +129,17 @@ export default function SubmissionsPage() {
       key: "rights",
       header: "Your copy",
       cell: (s) => {
+        // Paid before the signing step existed, so there is no agreement behind it. Needs action, not a dash.
+        if (s.paymentProcessed && !s.rightsSignature) {
+          return (
+            <button
+              onClick={(e) => { e.stopPropagation(); setSignTarget(s); }}
+              className="text-xs text-brand hover:underline font-semibold whitespace-nowrap"
+            >
+              Sign rights agreement
+            </button>
+          );
+        }
         const req = deletionRequests[s.id];
         if (req) {
           return (
@@ -192,6 +206,15 @@ export default function SubmissionsPage() {
         </>
       )}
 
+      {signTarget && (
+        <Cycle1SignModal
+          sub={signTarget}
+          wallet={appUser?.walletAddress ?? null}
+          defaultCreditName={appUser?.username || appUser?.discordHandle || ""}
+          onClose={() => setSignTarget(null)}
+        />
+      )}
+
       {deleteTarget && (
         <DeletionRequestModal
           sub={deleteTarget}
@@ -200,6 +223,80 @@ export default function SubmissionsPage() {
         />
       )}
     </AppShell>
+  );
+}
+
+// Cycle 1 backfill. Writes the agreement onto the existing submission rather than creating anything new,
+// because the submission is the record the assignment attaches to. Rules allow this exactly once per
+// submission and only while no signature is present, so a signed record can never be overwritten from here.
+function Cycle1SignModal({
+  sub, wallet, defaultCreditName, onClose,
+}: { sub: any; wallet: string | null; defaultCreditName: string; onClose: () => void }) {
+  const [record, setRecord] = useState<RightsRecord | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const save = async (r: RightsRecord) => {
+    setBusy(true);
+    setError("");
+    try {
+      await updateDoc(doc(db, "submissions", sub.id), {
+        rightsVersion: r.rightsVersion,
+        rightsMessage: r.rightsMessage,
+        rightsSignature: r.rightsSignature,
+        rightsSignedAt: r.rightsSignedAt,
+        rightsWallet: r.rightsWallet,
+        creditName: r.creditName,
+        updatedAt: serverTimestamp(),
+      });
+      setDone(true);
+    } catch {
+      setError("Signed, but saving it failed. Nothing was recorded. Check your connection and try again.");
+      setRecord(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} title="Sign rights agreement">
+      {done ? (
+        <div className="py-2">
+          <p className="text-sm text-ok font-semibold mb-1">Recorded. Thank you.</p>
+          <p className="text-xs text-outline leading-relaxed">
+            The agreement is now on the record for <span className="mono">{sub.taskId}</span>. Nothing about your
+            payment changes.
+          </p>
+          <div className="flex justify-end mt-4">
+            <button onClick={onClose} className="btn-primary text-xs">Close</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="text-sm text-on-surface mb-3">
+            <span className="mono text-xs">{sub.taskId}</span> {sub.taskTitle}
+          </p>
+          {wallet ? (
+            <RightsSignature
+              cycle1
+              taskId={sub.taskId}
+              wallet={wallet}
+              defaultCreditName={defaultCreditName}
+              value={record}
+              onChange={(r) => { setRecord(r); if (r) save(r); }}
+            />
+          ) : (
+            <p className="text-xs text-error">No wallet on your profile. Sign out and back in with your wallet first.</p>
+          )}
+          {busy && <p className="text-xs text-outline mt-2">Recording…</p>}
+          {error && <p className="text-xs text-error mt-2">{error}</p>}
+          <div className="flex justify-end mt-4">
+            <button onClick={onClose} className="btn-secondary text-xs">Close</button>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
 

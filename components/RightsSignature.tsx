@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { useAccount, useConnect, useSignMessage } from "wagmi";
 import type { Connector } from "wagmi";
-import { buildRightsMessage, creditNameError, CREDIT_NAME_MAX, RIGHTS_AGREEMENT, RIGHTS_VERSION, type RightsRecord } from "@/lib/rights";
+import { buildRightsMessage, creditNameError, CREDIT_NAME_MAX, RIGHTS_AGREEMENT, RIGHTS_AGREEMENT_CYCLE1, RIGHTS_VERSION, RIGHTS_VERSION_CYCLE1, type RightsRecord } from "@/lib/rights";
 import { verifyWalletSignature } from "@/lib/auth-utils";
 import Link from "next/link";
 
@@ -23,12 +23,16 @@ export default function RightsSignature({
   defaultCreditName,
   value,
   onChange,
+  cycle1 = false,
 }: {
   taskId: string;
   wallet: string;
   defaultCreditName: string;
   value: RightsRecord | null;
   onChange: (record: RightsRecord | null) => void;
+  // Cycle 1 backfill: work already selected and paid, assigned now with effect from the payment date.
+  // Different text and a different version, because the standard one is written forward looking.
+  cycle1?: boolean;
 }) {
   const { address, isConnected } = useAccount();
   const { connectors, connectAsync } = useConnect();
@@ -72,14 +76,14 @@ export default function RightsSignature({
       if (signer !== registered) throw new Error("WRONG_WALLET");
 
       const timestamp = new Date().toISOString();
-      const message = buildRightsMessage({ taskId, wallet: registered, creditName: creditName.trim(), timestamp });
+      const message = buildRightsMessage({ taskId, wallet: registered, creditName: creditName.trim(), timestamp, cycle1 });
       const signature = await signMessageAsync({ account: signer as `0x${string}`, message });
 
       const ok = await verifyWalletSignature(message, signature, registered);
       if (!ok) throw new Error("VERIFY_FAILED");
 
       onChange({
-        rightsVersion: RIGHTS_VERSION,
+        rightsVersion: cycle1 ? RIGHTS_VERSION_CYCLE1 : RIGHTS_VERSION,
         rightsMessage: message,
         rightsSignature: signature,
         rightsSignedAt: timestamp,
@@ -128,11 +132,20 @@ export default function RightsSignature({
   return (
     <div className="border border-outline-variant rounded p-3">
       <p className="text-xs text-primary font-semibold mb-1">Rights and credit</p>
-      <p className="text-xs text-outline leading-relaxed mb-3">
-        Sign this with your wallet to submit. Rights transfer only if your submission is selected and you are paid.
-        If it is not selected, nothing transfers, you keep your work, and it will not be used.{" "}
-        <Link href="/terms" target="_blank" className="text-primary hover:underline">Read the full terms</Link>.
-      </p>
+      {cycle1 ? (
+        <p className="text-xs text-outline leading-relaxed mb-3">
+          This task was selected and paid before the board had a signing step, so there is no rights record for it.
+          Signing assigns the rights in that work, with effect from the date you were paid. Nothing about your
+          payment changes.{" "}
+          <Link href="/terms" target="_blank" className="text-primary hover:underline">Read the full terms</Link>.
+        </p>
+      ) : (
+        <p className="text-xs text-outline leading-relaxed mb-3">
+          Sign this with your wallet to submit. Rights transfer only if your submission is selected and you are paid.
+          If it is not selected, nothing transfers, you keep your work, and it will not be used.{" "}
+          <Link href="/terms" target="_blank" className="text-primary hover:underline">Read the full terms</Link>.
+        </p>
+      )}
 
       <label className="label" htmlFor="credit-name">Credit name</label>
       <input
@@ -154,7 +167,7 @@ export default function RightsSignature({
       </button>
       {showTerms && (
         <pre className="text-[11px] text-outline whitespace-pre-wrap leading-relaxed border border-outline-variant rounded p-2 mb-3 max-h-56 overflow-y-auto">
-          {RIGHTS_AGREEMENT}
+          {cycle1 ? RIGHTS_AGREEMENT_CYCLE1 : RIGHTS_AGREEMENT}
         </pre>
       )}
 

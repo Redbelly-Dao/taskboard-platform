@@ -31,21 +31,47 @@ By signing, I confirm that:
 7. I agree to be credited under the name I provide, and that the DAO's brand, not mine, is the centrepiece of any published version.
 8. I have read and agree to the participation Terms and Conditions, which these confirmations form part of.`;
 
+// Cycle 1 backfill. Six submissions were selected and PAID before any signing step existed, and no
+// agreement was signed on paper either, so there is currently no assignment behind six published deliverables.
+//
+// This is a present assignment, not a confirmation of an earlier one, because there was no earlier one to
+// confirm. It is expressed as taking effect from the payment date so the record matches what actually
+// happened, and it names the payment already received as the consideration, since no fresh consideration
+// passes at signing.
+//
+// Kept as its own version rather than reusing 2026-07: that text is written forward looking ("if my
+// submission is selected and I am paid"), which is false for work already paid, and T&Cs cl 12.2 says
+// versions do not apply retrospectively to work already submitted.
+export const RIGHTS_VERSION_CYCLE1 = "2026-07-c1";
+
+export const RIGHTS_AGREEMENT_CYCLE1 = `Redbelly DAO Community Task Board: Cycle 1 Rights Assignment (${RIGHTS_VERSION_CYCLE1})
+
+This covers work I submitted before the board had a signing step. By signing, I confirm that:
+1. I submitted the work identified below to the Redbelly DAO Community Task Board, it is my own original work, it does not infringe anyone else's rights, and I have the right to assign it.
+2. That submission was selected and I have been paid for it.
+3. I assign to ${RIGHTS_ASSIGNEE} (ABN ${RIGHTS_ASSIGNEE_ABN}), absolutely and worldwide, all right, title and interest in that work, including all intellectual property rights, for the full term of those rights.
+4. This assignment takes effect from the date I was paid. The payment I have already received is the consideration for it.
+5. To the extent permitted by the law of the jurisdiction in which I am resident, I consent to ${RIGHTS_ASSIGNEE}, its licensees and successors using, reproducing, adapting, editing, adding to, combining and publishing that work, with or without attribution and in any media, and to acts that would otherwise infringe my moral rights in it.
+6. I agree to be credited under the name I provide, and that the DAO's brand, not mine, is the centrepiece of any published version.
+7. I am signing with the wallet that received the payment.
+8. I have read and agree to the participation Terms and Conditions.`;
+
 // The exact message handed to personal_sign. Deterministic, so it can be recovered and verified later.
 export function buildRightsMessage(params: {
   taskId: string;
   wallet: string;
   creditName: string;
   timestamp: string; // ISO
+  cycle1?: boolean;
 }): string {
   return [
-    RIGHTS_AGREEMENT,
+    params.cycle1 ? RIGHTS_AGREEMENT_CYCLE1 : RIGHTS_AGREEMENT,
     "",
     `Task: ${params.taskId}`,
     `Wallet: ${params.wallet.toLowerCase()}`,
     `Credit name: ${params.creditName}`,
     `Signed: ${params.timestamp}`,
-    `Agreement version: ${RIGHTS_VERSION}`,
+    `Agreement version: ${params.cycle1 ? RIGHTS_VERSION_CYCLE1 : RIGHTS_VERSION}`,
   ].join("\n");
 }
 

@@ -151,6 +151,18 @@ service cloud.firestore {
           request.resource.data.status == "under_review"
         ) ||
         (
+          // Cycle 1 rights backfill. Six submissions were selected and paid before a signing step existed,
+          // so they carry no agreement at all. The owner may attach one, and nothing else on the doc.
+          // One way only: absent to present. Once a signature is on the submission it can never be replaced
+          // or removed here, which is the whole point of it being evidence.
+          resource.data.contributorId == request.auth.uid &&
+          resource.data.get("rightsSignature", null) == null &&
+          request.resource.data.rightsWallet == resource.data.walletAddress &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+            ["rightsVersion", "rightsMessage", "rightsSignature", "rightsSignedAt", "rightsWallet", "creditName", "updatedAt"]
+          )
+        ) ||
+        (
           // Forfeit: the owner may withdraw their own submission, but only while it is still awaiting a reviewer
           // (no lock held, review not yet started).
           resource.data.contributorId == request.auth.uid &&
