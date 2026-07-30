@@ -84,7 +84,11 @@ export default function RulesPage() {
         </Section>
 
         <Section n="08" title="Rights and credit">
-          <p>When you submit, you sign a short rights agreement with your wallet, along with the name you want credited (agreement version <span className="mono">{RIGHTS_VERSION}</span>). If your submission is selected and you are paid, you assign the rights in that work to Redbelly Network Pty Ltd, with your consent to moral-rights use. If you are not selected, no rights transfer and you keep your work. Payment is what transfers rights. Final terms are in the participation T&amp;Cs.</p>
+          <p>When you submit, you sign a short rights agreement with your registered wallet, along with the name you want credited (agreement version <span className="mono">{RIGHTS_VERSION}</span>). You cannot submit without it, and the signature has to come from the wallet on your profile.</p>
+          <p>If your submission is selected and you are paid, you assign the rights in that work to Redbelly Network Pty Ltd, with your consent to moral-rights use scoped to the law of your own country. If you are not selected, no rights transfer, you keep your work, and it is never used, published or distributed. Payment is what transfers rights, not submission.</p>
+          <p>Work that is not selected stays on the board&apos;s record for appeals, audit and disputes, visible only to admins. You can ask for it to be deleted at any time and it will be, unless an appeal or dispute involving it is still open.</p>
+          <p>Because everyone works from the same specification, similar submissions are expected. Publishing the winner is not a breach of that promise just because your entry resembles it. What is protected is your specific work, not the idea or the brief.</p>
+          <p>The full terms are on the <Link href="/terms" className="text-primary hover:underline">participation T&amp;Cs</Link> page.</p>
         </Section>
 
         <Section n="09" title="Appeals">

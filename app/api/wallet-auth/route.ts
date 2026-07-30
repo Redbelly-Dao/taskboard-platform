@@ -5,7 +5,7 @@ import { walletToEmail, verifyWalletSignature } from "@/lib/auth-utils";
 
 export async function POST(req: NextRequest) {
   try {
-    const { wallet, message, signature, isRegister, discordHandle, username } = await req.json();
+    const { wallet, message, signature, isRegister, discordHandle, username, acceptedTermsVersion } = await req.json();
 
     if (!wallet || !message || !signature) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
@@ -73,6 +73,12 @@ export async function POST(req: NextRequest) {
         await cleanupNewAuth();
         return NextResponse.json({ error: "A Discord handle and a username are both required to register." }, { status: 400 });
       }
+      // T&Cs cl 8.2: acceptance of the full Terms is required to register, recorded server-side so the
+      // record cannot be back-dated or omitted by a client that skipped the checkbox.
+      if (!acceptedTermsVersion) {
+        await cleanupNewAuth();
+        return NextResponse.json({ error: "You must accept the participation Terms and Conditions to register." }, { status: 400 });
+      }
       const dupe = await firestore.collection("users").where("username", "==", un).limit(1).get();
       if (!dupe.empty) {
         await cleanupNewAuth();
@@ -85,6 +91,8 @@ export async function POST(req: NextRequest) {
         role: "contributor",
         discordHandle: dh,
         username: un,
+        termsAcceptedVersion: acceptedTermsVersion,
+        termsAcceptedAt: admin.firestore.FieldValue.serverTimestamp(),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
     } else if (pendingDoc.exists) {

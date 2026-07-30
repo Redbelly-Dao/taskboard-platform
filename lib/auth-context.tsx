@@ -36,7 +36,7 @@ interface AuthContextType {
   loading: boolean;
   register: (walletAddress: string, password: string, discordHandle?: string, username?: string) => Promise<void>;
   login: (walletAddress: string, password: string) => Promise<void>;
-  walletRegister: (walletAddress: string, signature: string, message: string, discordHandle?: string, username?: string) => Promise<void>;
+  walletRegister: (walletAddress: string, signature: string, message: string, discordHandle?: string, username?: string, acceptedTermsVersion?: string) => Promise<void>;
   walletLogin: (walletAddress: string, signature: string, message: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -110,11 +110,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAppUser(null);
   };
 
-  const walletRegister = async (walletAddress: string, signature: string, message: string, discordHandle?: string, username?: string) => {
+  const walletRegister = async (walletAddress: string, signature: string, message: string, discordHandle?: string, username?: string, acceptedTermsVersion?: string) => {
     const res = await fetch("/api/wallet-auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wallet: walletAddress, message, signature, isRegister: true, discordHandle, username }),
+      body: JSON.stringify({ wallet: walletAddress, message, signature, isRegister: true, discordHandle, username, acceptedTermsVersion }),
     });
     const data = await res.json();
     if (!res.ok || !data.customToken) throw new Error(data.error || "Wallet auth failed");
@@ -122,7 +122,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cred = await signInWithCustomToken(auth, data.customToken);
 
     // Server now handles profile (including pending pre-grant and wallet-based migration).
-    const snap = await getDoc(doc(db, "users", cred.user.uid));
+    // Guarded for the same reason as the read in onAuthStateChanged: the custom token has already been accepted,
+    // so the account IS signed in, and letting a Firestore read throw here aborts the redirect and shows the raw
+    // Firestore message on the login form, which reads as "signing in failed" when it did not.
+    let snap;
+    try {
+      snap = await getDoc(doc(db, "users", cred.user.uid));
+    } catch (err) {
+      console.warn("Signed in, but the profile read failed. onAuthStateChanged will retry it:", err);
+      return;
+    }
     if (snap.exists()) {
       setAppUser(snap.data() as AppUser);
     } else {
@@ -148,8 +157,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const cred = await signInWithCustomToken(auth, data.customToken);
 
-    // Fetch existing profile (role etc may have been pre-granted or migrated)
-    const snap = await getDoc(doc(db, "users", cred.user.uid));
+    // Fetch existing profile (role etc may have been pre-granted or migrated).
+    // Guarded: see walletRegister above. A failed read must not undo a successful sign-in.
+    let snap;
+    try {
+      snap = await getDoc(doc(db, "users", cred.user.uid));
+    } catch (err) {
+      console.warn("Signed in, but the profile read failed. onAuthStateChanged will retry it:", err);
+      return;
+    }
     if (snap.exists()) {
       setAppUser(snap.data() as AppUser);
     } else {

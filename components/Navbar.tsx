@@ -15,6 +15,7 @@ import { useUploadThing } from "@/lib/uploadthing";
 
 const MAX_ATTACHMENTS = 3;
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const ADMIN_TELEGRAM = "https://t.me/njaybby";
 
 // Simple user avatar, so the profile chip reads as a person rather than a bare box.
 function AvatarIcon({ className = "" }: { className?: string }) {
@@ -513,6 +514,17 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
             <button onClick={send} disabled={!message.trim() || sending || isUploading} className="btn-primary text-xs">
               {sending || isUploading ? "Sending…" : "Send feedback"}
             </button>
+          </div>
+
+          {/* Escape hatch for the things this form is the wrong shape for: account access, payment, anything
+              personal. General questions still belong in the channel, so the wording steers rather than invites. */}
+          <div className="border-t border-outline-variant pt-3">
+            <p className="text-xs text-outline">
+              Account, payment, or something private?{" "}
+              <a href={ADMIN_TELEGRAM} target="_blank" rel="noopener noreferrer" className="text-primary font-semibold hover:underline">
+                Message the admin on Telegram
+              </a>
+            </p>
           </div>
         </>
       )}

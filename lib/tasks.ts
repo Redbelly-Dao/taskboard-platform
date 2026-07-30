@@ -72,8 +72,12 @@ export interface Submission {
   // Prevents a double refund if the task is un-completed and re-completed.
   capRefunded?: boolean;
   // Rights: signed at submission, but only transfer on payment (B4).
+  // rightsMessage is the exact text that was signed, stored verbatim so the signature can be recovered
+  // and re-verified offline years later without depending on the current RIGHTS_AGREEMENT constant.
   rightsSignature?: string;
   rightsVersion?: string;
+  rightsMessage?: string;
+  rightsWallet?: string;
   creditName?: string;
   rightsSignedAt?: unknown;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

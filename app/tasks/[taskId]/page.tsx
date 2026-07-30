@@ -10,6 +10,8 @@ import { Cycle, isFrozen } from "@/lib/cycle";
 import { Claim, claimExpiry, isClaimActive, slotsRemaining, CLAIM_DAYS } from "@/lib/claims";
 import { Appeal, AppealType, APPEAL_WINDOW_DAYS, APPEAL_STATEMENT_MAX, criterionShortLabel, withinAppealWindow } from "@/lib/appeals";
 import AppShell from "@/components/AppShell";
+import RightsSignature from "@/components/RightsSignature";
+import type { RightsRecord } from "@/lib/rights";
 import SubmissionChat from "@/components/SubmissionChat";
 import RevisionCountdown from "@/components/RevisionCountdown";
 import Link from "next/link";
@@ -36,6 +38,9 @@ export default function TaskPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  // Signed rights agreement (T&Cs cl 8.1). Held here rather than inside RightsSignature so the submit
+  // handler can refuse to write a submission without one, and so "Change" clears it in both places at once.
+  const [rights, setRights] = useState<RightsRecord | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const { startUpload, isUploading } = useUploadThing("submissionFile", {
@@ -196,6 +201,14 @@ export default function TaskPage() {
       return;
     }
 
+    // Rights agreement (T&Cs cl 8.1). No signature, no submission: the whole point of the record is that
+    // it exists for every submission, so there is no path that writes one without it.
+    // The signature is bound to this taskId, so a record signed for another task cannot be reused here.
+    if (!rights || rights.rightsWallet !== (appUser.walletAddress || "").toLowerCase()) {
+      setSubmitError("Sign the rights agreement with your registered wallet before submitting.");
+      return;
+    }
+
     // The cap lives on the (public) task doc as `submissionCount`, so contributors can SEE it and we can ENFORCE it.
     // Quick check for good UX before the (slow) file upload:
     const cap = task.maxSubmissions ?? 5;
@@ -241,6 +254,12 @@ export default function TaskPage() {
         notes,
         fileUrl,
         fileName,
+        creditName: rights.creditName,
+        rightsVersion: rights.rightsVersion,
+        rightsMessage: rights.rightsMessage,
+        rightsSignature: rights.rightsSignature,
+        rightsSignedAt: rights.rightsSignedAt,
+        rightsWallet: rights.rightsWallet,
         status: "under_review",
         reviewScore: null,
         reviewDecision: null,
@@ -1046,6 +1065,16 @@ export default function TaskPage() {
                   <p className="text-xs text-outline mt-1">{notes.length}/2000</p>
                 </div>
 
+                {appUser?.walletAddress && (
+                  <RightsSignature
+                    taskId={taskId as string}
+                    wallet={appUser.walletAddress}
+                    defaultCreditName={appUser.username || appUser.discordHandle || ""}
+                    value={rights}
+                    onChange={setRights}
+                  />
+                )}
+
                 {submitError && (
                   <div className="border border-error/40 rounded-lg p-3">
                     <p className="text-error text-xs">{submitError}</p>
@@ -1053,7 +1082,7 @@ export default function TaskPage() {
                 )}
 
                 <div className="flex gap-3 pt-2">
-                  <button type="submit" className="btn-primary" disabled={submitting || isUploading}>
+                  <button type="submit" className="btn-primary" disabled={submitting || isUploading || !rights}>
                     {isUploading ? (
                       <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Uploading… {uploadProgress > 0 ? `${Math.round(uploadProgress)}%` : ""}</>
                     ) : submitting ? (

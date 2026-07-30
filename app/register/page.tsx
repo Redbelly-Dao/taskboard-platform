@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useWalletConnectors } from "@/lib/use-wallet-connect";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
+import { RIGHTS_VERSION } from "@/lib/rights";
 
 export default function RegisterPage() {
   const { walletRegister } = useAuth();
@@ -14,6 +15,7 @@ export default function RegisterPage() {
   const { connectors, connectAndSign } = useWalletConnectors();
   const [discord, setDiscord] = useState("");
   const [username, setUsername] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState("");
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -23,10 +25,16 @@ export default function RegisterPage() {
       setError("Enter both a Discord handle and a username before connecting your wallet.");
       return;
     }
+    // T&Cs cl 8.2. The wallet signature at submission proves a wallet signed one task's agreement;
+    // this ties the person to the complete Terms before they ever open a task.
+    if (!acceptedTerms) {
+      setError("Accept the participation Terms and Conditions before connecting your wallet.");
+      return;
+    }
     setPendingId(connector.uid);
     try {
       const { address, signature, message } = await connectAndSign(connector);
-      await walletRegister(address, signature, message, discord, username);
+      await walletRegister(address, signature, message, discord, username, RIGHTS_VERSION);
       router.replace("/dashboard");
     } catch (err: unknown) {
       const e = err as { shortMessage?: string; message?: string };
@@ -91,7 +99,9 @@ export default function RegisterPage() {
                 <p className="text-xs text-outline leading-relaxed">
                   All new accounts are Contributors. Reviewer and Administrator roles are assigned by admins after
                   vetting. Reach out in the{" "}
-                  <a href="https://discord.com/channels/969088176322908160/1471738127860236424" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">#DAO TASKBOARD</a>
+                  {/* Server invite, not the channel deep link. This page is read by people who have not joined yet,
+                      and a deep link only resolves for existing members. */}
+                  <a href="https://discord.gg/YMpArA2Y8j" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">#DAO TASKBOARD</a>
                   {" "}channel after registering.
                   <br />
                   You must complete KYC at{" "}
@@ -99,6 +109,22 @@ export default function RegisterPage() {
                   to use the Redbelly Network.
                 </p>
               </div>
+
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-0.5 shrink-0 accent-[var(--brand)]"
+                />
+                <span className="text-xs text-on-surface leading-relaxed">
+                  I have read and accept the{" "}
+                  <Link href="/terms" target="_blank" className="text-primary font-semibold hover:underline">participation Terms and Conditions</Link>
+                  {" "}(version <span className="mono">{RIGHTS_VERSION}</span>) and the{" "}
+                  <Link href="/rules" target="_blank" className="text-primary font-semibold hover:underline">Task Board Rulebook</Link>.
+                  If a submission of mine is selected and paid, the rights in that work transfer to Redbelly Network Pty Ltd.
+                </span>
+              </label>
 
               <div>
                 <label className="label">Connect wallet to register <span className="text-brand">*</span></label>
@@ -119,7 +145,7 @@ export default function RegisterPage() {
                         <button
                           key={connector.uid}
                           onClick={() => handleRegister(connector)}
-                          disabled={pendingId !== null || !discord.trim() || !username.trim()}
+                          disabled={pendingId !== null || !discord.trim() || !username.trim() || !acceptedTerms}
                           className="btn-primary w-full justify-center disabled:opacity-60"
                         >
                           {pending ? (
