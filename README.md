@@ -12,11 +12,13 @@ Each task carries the problem statement, technical requirements, deliverables, q
 
 ## Routes
 
-- `/` and `/tasks` browse and open tasks
+- `/` the board, where open tasks are browsed
+- `/tasks/[taskId]` a single task and its submission form
 - `/submissions` a contributor's own submissions and their state
 - `/dashboard` contributor overview
-- `/reviewer` the review queue and scoring
-- `/admin` task authoring, submission decisions, payments, feedback triage
+- `/profile` account details and wallet address
+- `/reviewer` the review queue, `/reviewer/[submissionId]` to score one
+- `/admin` task authoring, submission decisions, payments, cycle dates, reviewers, users, appeals, feedback and suggestion triage, audit log
 - `/ledger` the public record of completed and paid work
 - `/rules` the participation rules
 - `/api/cron/sweep` the daily deadline sweep
