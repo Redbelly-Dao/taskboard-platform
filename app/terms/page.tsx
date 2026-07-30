@@ -18,6 +18,7 @@ import { useAuth } from "@/lib/auth-context";
 import AppShell from "@/components/AppShell";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
+import SiteFooter from "@/components/SiteFooter";
 import { RIGHTS_VERSION, RIGHTS_ASSIGNEE, RIGHTS_ASSIGNEE_ABN } from "@/lib/rights";
 
 function Clause({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
@@ -137,14 +138,15 @@ export default function TermsPage() {
 
   if (user) return <AppShell width="narrow">{body}</AppShell>;
   return (
-    <div className="min-h-screen bg-background-deep">
+    <div className="min-h-screen bg-background-deep flex flex-col">
       <header className="page-header sticky top-0 z-50">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5"><Logo /><span className="text-outline text-sm font-medium">Task Board</span></div>
           <div className="flex items-center gap-2"><ThemeToggle /><Link href="/login" className="btn-secondary text-xs">Sign in</Link></div>
         </div>
       </header>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">{body}</div>
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 w-full">{body}</div>
+      <SiteFooter />
     </div>
   );
 }

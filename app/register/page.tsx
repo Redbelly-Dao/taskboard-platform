@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useWalletConnectors } from "@/lib/use-wallet-connect";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
+import SiteFooter from "@/components/SiteFooter";
 import { RIGHTS_VERSION } from "@/lib/rights";
 
 export default function RegisterPage() {
@@ -190,6 +191,7 @@ export default function RegisterPage() {
           </div>
         </div>
       </div>
+      <SiteFooter />
     </div>
   );
 }

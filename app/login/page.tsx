@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useWalletConnectors } from "@/lib/use-wallet-connect";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
+import SiteFooter from "@/components/SiteFooter";
 
 export default function LoginPage() {
   const { walletLogin } = useAuth();
@@ -132,6 +133,7 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
+      <SiteFooter />
     </div>
   );
 }

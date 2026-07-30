@@ -1,5 +1,6 @@
 "use client";
 import Navbar from "@/components/Navbar";
+import SiteFooter from "@/components/SiteFooter";
 
 // Every page used to hand-repeat the page chrome.
 // One shell now owns it: deep background, the nav, and the 1280px fixed-fluid container
@@ -20,9 +21,12 @@ export default function AppShell({
   nav?: boolean;
 }) {
   return (
-    <div className="min-h-screen bg-background-deep">
+    // Column layout so the footer's mt-auto pins it to the bottom on short pages
+    // instead of floating directly under the content.
+    <div className="min-h-screen bg-background-deep flex flex-col">
       {nav && <Navbar />}
-      <div className={`${WIDTHS[width]} mx-auto px-4 sm:px-6 py-8`}>{children}</div>
+      <div className={`${WIDTHS[width]} w-full mx-auto px-4 sm:px-6 py-8`}>{children}</div>
+      <SiteFooter />
     </div>
   );
 }
