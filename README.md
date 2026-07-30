@@ -47,6 +47,18 @@ For server side Firebase access you can either set the three `FIREBASE_ADMIN_*` 
 
 The route requires `CRON_SECRET`. Without it every request gets a 401 and the sweep silently stops running, which means deadlines stop being enforced. If deadline handling ever looks stuck, check that variable first.
 
+## Bot API
+
+`app/api/bot` is a read-only JSON surface for the DAO Discord bot, so it can answer questions about the board without scraping pages or holding Firebase credentials of its own.
+
+- `GET /api/bot/cycle` current cycle, its dates, a countdown, and whether submissions are open
+- `GET /api/bot/tasks` task list, defaulting to open tasks in the current cycle. `?status=` takes any task status or `all`, `?cycle=` takes a cycle number or `all`
+- `GET /api/bot/tasks/[taskId]` one task's full published spec. The task code is the document id, so `/api/bot/tasks/TASK-16` works, and lowercase is accepted
+
+Every request needs `Authorization: Bearer $BOT_API_KEY`. If `BOT_API_KEY` is unset the endpoints return 503 rather than serving unauthenticated, so a half-configured deploy stays shut instead of publishing the board.
+
+Two rules govern what this may return. Nothing that identifies a person ever goes out, so no wallets, emails, usernames, Discord handles or reviewer assignments. Nothing about submissions goes out beyond an aggregate count, because a submission is between the contributor and their reviewer. Anything added to `lib/bot-api.ts` has to hold to both.
+
 ## Firestore
 
 Security rules are in `firestore.rules` and composite indexes in `firestore.indexes.json`. Both deploy with the Firebase CLI:
