@@ -176,6 +176,16 @@ function ReviewerSubmissionPageInner() {
     try {
       await updateDoc(doc(db, "submissions", sub.id), patch);
       heldLockRef.current = true;
+      // Take the task itself if nobody owns it yet. Rules allow this null-to-self write once and never again,
+      // so whoever starts the first review compares every later submission on the same task.
+      // Best effort: losing the race just means another reviewer got there first, which is a valid outcome.
+      if (task && !task.reviewerId && !isAdmin) {
+        updateDoc(doc(db, "tasks", sub.taskId), {
+          reviewerId: user.uid,
+          reviewerWallet: appUser.walletAddress ?? null,
+          reviewerName: appUser.username || appUser.discordHandle || null,
+        }).catch(() => {});
+      }
     } catch {
       alert("Could not claim this submission for review, someone may have just taken it. Refresh and try again.");
     }

@@ -94,6 +94,18 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(
             ["recommendedWinnerId", "winnerRecommendationNote", "winnerRecommendedAt", "winnerRecommendedBy"]
           )
+        ) ||
+        (
+          // First-claim ownership. Tasks can open with no reviewer, and the first one to start a review takes
+          // the task for the rest of the cycle, so every submission on it is compared by the same person.
+          // One way only: null to self. A reviewer can never reassign a task, take one from someone else,
+          // or hand their own back. Only an admin can undo it.
+          role() == "reviewer" &&
+          resource.data.get("reviewerId", null) == null &&
+          request.resource.data.reviewerId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+            ["reviewerId", "reviewerWallet", "reviewerName"]
+          )
         )
       );
 
