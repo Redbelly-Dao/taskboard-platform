@@ -289,6 +289,31 @@ export default function AdminModals() {
                       <p className="text-on-surface leading-relaxed">{auditSub.notes}</p>
                     </div>
                   )}
+
+                  {/* T&Cs cl 6.1 promises credit under the name the contributor chose at submission.
+                      Capturing it is not enough: whoever publishes the deliverable has to be able to read it,
+                      and whoever authorises payment has to be able to see the agreement exists.
+                      Signature verification itself lives in scripts/verify-rights.js. */}
+                  <div className="mt-2 p-3 bg-surface-container-low rounded-lg">
+                    <p className="text-outline mb-1">Rights agreement</p>
+                    {auditSub.rightsSignature ? (
+                      <>
+                        <p className="text-on-surface">
+                          Credit as <span className="font-semibold">{auditSub.creditName || "(none given)"}</span>
+                        </p>
+                        <p className="text-outline mt-1">
+                          Version <span className="mono text-on-surface">{auditSub.rightsVersion}</span>, signed{" "}
+                          {auditSub.rightsSignedAt ? new Date(auditSub.rightsSignedAt).toLocaleString() : "-"}
+                        </p>
+                        <p className="mono text-outline break-all mt-1">{auditSub.rightsWallet}</p>
+                      </>
+                    ) : (
+                      <p className="text-error">
+                        No signature on this submission. It predates the signing step, so the agreement for it is
+                        offline. Confirm it before paying.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
