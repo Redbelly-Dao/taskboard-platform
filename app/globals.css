@@ -165,9 +165,6 @@
   --input-border: #3F4C6B;
   --card-sheen: rgba(255, 255, 255, 0.025);
   --header-tint: 72%;
-  /* Dark logo art needs a plate to read against the deep background. */
-  --logo-plate: #ffffff;
-  --logo-plate-pad: 0.3rem 0.4rem;
 }
 
 /* ── LIGHT (derived counterpart, same brand) ─────────── */
@@ -228,9 +225,6 @@
   --input-border: #C9D1D6;
   --card-sheen: rgba(0, 0, 0, 0.012);
   --header-tint: 80%;
-  /* Light art on a light header: no plate needed. */
-  --logo-plate: transparent;
-  --logo-plate-pad: 0;
 }
 
 body {
@@ -248,17 +242,29 @@ body {
   outline-offset: 2px;
 }
 
-/* ── Logo plate ──────────────────────────────────────
-   The DAO mark is dark-inked, so on the deep background it is near-invisible.
-   Give it a plate in dark, nothing in light. */
-.logo-plate {
-  background-color: var(--logo-plate);
-  padding: var(--logo-plate-pad);
-  border-radius: var(--radius-DEFAULT);
-  display: inline-flex;
-  align-items: center;
+/* ── Logo ────────────────────────────────────────────
+   Two artwork variants, light ink for dark backgrounds and dark ink for light ones.
+   Both are rendered and CSS picks; data-theme is stamped on <html> before paint, so this never
+   flashes the wrong mark the way a JS switch would.
+   This replaced the old white plate, which existed only because there was no light-ink variant. */
+.logo {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
   line-height: 0;
 }
+.logo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* The span's width is a rounded multiple of its height, so it can sit under a pixel off the
+     artwork's ratio. Contain absorbs that instead of stretching the wordmark. */
+  object-fit: contain;
+}
+.logo .logo-on-light { opacity: 0; }
+[data-theme="light"] .logo .logo-on-dark { opacity: 0; }
+[data-theme="light"] .logo .logo-on-light { opacity: 1; }
 
 /* ── Buttons ─────────────────────────────────────────
    Architectural, not toy-like: 4px radius, never pills. */

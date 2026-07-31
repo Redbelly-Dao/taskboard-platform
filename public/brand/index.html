@@ -172,8 +172,7 @@
     justify-content: center;
     min-height: 120px;
   }
-  .logo-cell img { max-width: 150px; max-height: 60px; height: auto; display: block; }
-  .plate { background: #ffffff; padding: 0.3rem 0.4rem; border-radius: 3px; display: inline-flex; }
+  .logo-cell img { height: 76px; width: auto; display: block; }
   .cap { font-size: 12px; color: var(--ink-dim); text-align: center; margin-top: 8px; line-height: 1.4; }
 
   /* Components */
@@ -264,7 +263,7 @@
     </div>
     <div>
       <div class="logo-cell" style="min-height:0;padding:20px">
-        <span class="plate"><img src="/brand/dao-logo.png" alt="Redbelly DAO logo"></span>
+        <img src="/brand/dao-logo-on-dark.png" alt="Redbelly DAO logo">
       </div>
     </div>
   </header>
@@ -361,26 +360,26 @@
 
   <section>
     <h2>Logo</h2>
-    <p>The mark is dark artwork. On the board's deep slate background it cannot sit bare, so it is always placed on a white plate. This is not a stylistic preference, it is the only way the mark reads.</p>
+    <p>There are two variants of the same lockup. Dark ink for light backgrounds, light ink for dark ones. Pick by background and never place either on a plate: the plate was a workaround from when only the dark variant existed, and it is retired.</p>
 
     <div class="logo-row">
       <div>
         <div class="logo-cell" style="background:#0f181d">
-          <span class="plate"><img src="/brand/dao-logo.png" alt="Logo on a white plate over the dark surface"></span>
+          <img src="/brand/dao-logo-on-dark.png" alt="Light-ink lockup on the dark surface">
         </div>
-        <p class="cap">Correct. White plate, <code>0.3rem 0.4rem</code> padding, 3px radius.</p>
+        <p class="cap">On dark. <span class="mono">dao-logo-on-dark.png</span>, bare, no plate.</p>
       </div>
       <div>
         <div class="logo-cell" style="background:#F6F7F8">
-          <img src="/brand/dao-logo.png" alt="Logo on a light background">
+          <img src="/brand/dao-logo-on-light.png" alt="Dark-ink lockup on the light surface">
         </div>
-        <p class="cap">Correct on light. No plate needed.</p>
+        <p class="cap">On light. <span class="mono">dao-logo-on-light.png</span>.</p>
       </div>
       <div>
         <div class="logo-cell" style="background:#EF5350">
-          <span class="plate"><img src="/brand/dao-logo.png" alt="Logo on a white plate over the brand red"></span>
+          <img src="/brand/dao-logo-on-dark.png" alt="Light-ink lockup on the brand red">
         </div>
-        <p class="cap">On the brand red, keep the plate.</p>
+        <p class="cap">On the brand red, use the light-ink variant.</p>
       </div>
     </div>
 
@@ -388,10 +387,11 @@
       <table>
         <thead><tr><th>Constraint</th><th>Value</th></tr></thead>
         <tbody>
-          <tr><td>Clear space</td><td>Minimum the height of the mark's tallest letterform on all four sides. Nothing enters that box.</td></tr>
-          <tr><td>Minimum width</td><td><span class="mono">88px</span> on screen. Below that, use the favicon instead.</td></tr>
-          <tr><td>Plate</td><td><span class="mono">#ffffff</span>, padding <span class="mono">0.3rem 0.4rem</span>, radius <span class="mono">3px</span>. Required on any surface darker than <span class="mono">#DADDE1</span>.</td></tr>
-          <tr><td>Master file</td><td><span class="mono">taskboard-platform/public/dao-logo.png</span>, copied alongside this page.</td></tr>
+          <tr><td>Shape</td><td>Landscape, close to 7:5. The mark sits above the wordmark. Scale by height and let the width follow; never set both.</td></tr>
+          <tr><td>Clear space</td><td>Minimum the height of the mark's tallest letterform on all four sides. Nothing enters that box. The files already carry part of it, so do not crop them tight.</td></tr>
+          <tr><td>Minimum size</td><td><span class="mono">28px</span> tall on screen. Below that the wordmark stops reading, so use the favicon instead.</td></tr>
+          <tr><td>Which variant</td><td>Light ink on any surface darker than <span class="mono">#DADDE1</span>, including the brand red. Dark ink on anything lighter. Never a plate.</td></tr>
+          <tr><td>Master files</td><td><span class="mono">public/dao-logo-on-light.png</span> and <span class="mono">public/dao-logo-on-dark.png</span>, copied alongside this page.</td></tr>
         </tbody>
       </table>
     </div>
@@ -475,7 +475,7 @@
           <tr><td>X square post</td><td class="mono">1080 x 1080</td><td>Better for dense reference graphics such as a venue list.</td></tr>
           <tr><td>X header</td><td class="mono">1500 x 500</td><td>The centre 1500 x 360 is the only reliably visible band.</td></tr>
           <tr><td>Discord embed image</td><td class="mono">1200 x 630</td><td>Also the correct Open Graph size for any linked page.</td></tr>
-          <tr><td>Avatar</td><td class="mono">512 x 512</td><td>Mark on a white plate, centred, with full clear space.</td></tr>
+          <tr><td>Avatar</td><td class="mono">512 x 512</td><td>The lockup centred on a square, sized to leave full clear space left and right rather than filling the width. Pick the variant that suits the avatar background.</td></tr>
           <tr><td>Export format</td><td class="mono">PNG</td><td>SVG where the asset is pure vector. No JPEG for anything containing text.</td></tr>
         </tbody>
       </table>

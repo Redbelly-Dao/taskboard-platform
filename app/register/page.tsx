@@ -51,7 +51,7 @@ export default function RegisterPage() {
       {/* Top bar */}
       <div className="page-header py-2 px-4">
         <div className="max-w-[1280px] mx-auto flex items-center gap-3">
-          <Logo height={24} width={35} />
+          <Logo height={30} />
           <span className="mono text-on-surface text-xs font-bold tracking-widest uppercase">Redbelly Network DAO</span>
           <span className="text-outline text-xs hidden sm:inline">· Community Task Board</span>
           <span className="ml-auto"><ThemeToggle /></span>
@@ -62,7 +62,7 @@ export default function RegisterPage() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <Logo height={52} width={77} />
+              <Logo height={84} />
             </div>
             <h1 className="text-2xl font-semibold text-on-surface">Create account</h1>
             <p className="text-outline text-sm mt-1">Register as a contributor to submit tasks</p>

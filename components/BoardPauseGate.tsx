@@ -43,7 +43,7 @@ export default function BoardPauseGate({ children }: { children: React.ReactNode
       <div className="min-h-screen bg-background-deep flex items-center justify-center px-4">
         <div className="card card-lg p-8 max-w-md w-full text-center">
           <div className="flex items-center justify-center mb-6">
-            <Logo height={40} width={59} />
+            <Logo height={64} />
           </div>
           <div className="w-14 h-14 border border-brand rounded-full flex items-center justify-center mx-auto mb-5">
             <svg className="w-7 h-7 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
