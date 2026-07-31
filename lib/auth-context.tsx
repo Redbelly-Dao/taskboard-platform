@@ -22,7 +22,6 @@ export interface AppUser {
   role: UserRole;
   discordHandle?: string;
   username?: string; // unique platform username (can differ from DC)
-  reviewerCategories?: TaskCategory[]; // for reviewer specialization e.g. ['developer'], ['design','documentation'], ['research']
   suspended?: boolean;
   approved?: boolean;
   createdAt: Date;

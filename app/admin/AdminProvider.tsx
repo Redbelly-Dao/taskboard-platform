@@ -531,7 +531,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       role: payload.role,
       username: payload.username || undefined,
       discordHandle: payload.discordHandle || undefined,
-      reviewerCategories: payload.role === "reviewer" ? ["developer"] : undefined,
       createdAt: serverTimestamp(),
     });
     await doFetchAll();
@@ -857,7 +856,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         uid: u.id,
         wallet: u.walletAddress ?? null,
         name: displayName(u.username, u.discordHandle, u.walletAddress),
-        categories: u.reviewerCategories ?? [],
       }))
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps

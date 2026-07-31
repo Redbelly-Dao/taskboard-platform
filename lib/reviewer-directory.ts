@@ -8,7 +8,6 @@ export interface ReviewerDirectoryEntry {
   uid: string;
   wallet?: string | null;
   name?: string | null;
-  categories?: string[];
 }
 
 export async function publishReviewerDirectory(list: ReviewerDirectoryEntry[]): Promise<void> {

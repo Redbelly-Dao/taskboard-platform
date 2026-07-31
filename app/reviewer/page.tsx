@@ -221,20 +221,17 @@ export default function ReviewerPage() {
 
       unsubSubs = onSnapshot(subQuery, (subSnap) => {
         let allSubs = subSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        // Per-task reviewer assignment (B2): a reviewer only sees submissions for tasks assigned to them.
-        // Tasks with no reviewer assigned yet fall back to the category pool below, so nothing stalls mid-transition.
+        // Any reviewer may take any task. What used to gate this was a per-reviewer category list, which
+        // meant a reviewer's queue silently hid most of the board and the category filter offered only the
+        // two or three types they were scoped to. Scope is now claimed rather than granted.
+        //
+        // The lock is what keeps that orderly: whoever starts the first review on a task takes the task,
+        // and from then on its submissions are theirs alone, so the same person compares them all.
         if (appUser.role === "reviewer") {
           allSubs = allSubs.filter((s: any) => {
             const t = map.get(s.taskId);
             if (t?.reviewerId) return t.reviewerId === user.uid;
-            return true; // unassigned task: fall through to category filtering
-          });
-        }
-        // Enforce reviewer classes from docs (Technical/Content/Research)
-        if (appUser.role === "reviewer" && appUser.reviewerCategories && appUser.reviewerCategories.length > 0) {
-          allSubs = allSubs.filter((s: any) => {
-            const t = map.get(s.taskId);
-            return t && appUser.reviewerCategories!.includes(t.category);
+            return true; // nobody has claimed this task yet, so it is open to everyone
           });
         }
         // Conflict of interest: a reviewer who has submitted to a task themselves never sees anyone's submissions for it.

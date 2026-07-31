@@ -140,6 +140,13 @@ export default function Navbar() {
   const handleNotifClick = (notif: any) => {
     markRead(notif);
     setShowDropdown(false);
+    // A notification can name where it wants to land, for the ones that are not about a task or a
+    // submission at all. Restricted to a path on this site: the value comes out of Firestore, and a
+    // notification that could send someone to an arbitrary host is a phishing primitive.
+    if (typeof notif.route === "string" && /^\/(?!\/)/.test(notif.route)) {
+      router.push(notif.route);
+      return;
+    }
     if (appUser?.role === "admin" || appUser?.role === "reviewer") {
       if (notif.submissionId) router.push(`/reviewer/${notif.submissionId}`);
       else router.push("/reviewer");

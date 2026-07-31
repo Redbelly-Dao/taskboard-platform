@@ -4,7 +4,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { doc, getDoc, onSnapshot, updateDoc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { Task, TaskCategory, RUBRIC_CRITERIA, REVISION_DAYS, displayName, getSubmissionStatusLabel, shortWallet, FIRST_ROUND_REJECTION_REASONS } from "@/lib/tasks";
+import { Task, RUBRIC_CRITERIA, REVISION_DAYS, displayName, getSubmissionStatusLabel, shortWallet, FIRST_ROUND_REJECTION_REASONS } from "@/lib/tasks";
 import { recountTaskActive } from "@/lib/submissions";
 import { daysFromNow, clampRevisionDeadline, Cycle } from "@/lib/cycle";
 import Navbar from "@/components/Navbar";
@@ -139,13 +139,14 @@ function ReviewerSubmissionPageInner() {
   const isActive = sub?.status === "under_review";
   const holdingLock = isActive && sub?.reviewingBy === user?.uid;
   const lockedByOther = isActive && sub?.reviewingBy && sub.reviewingBy !== user?.uid;
-  const outOfCategory =
-    isActive && !isAdmin && !!appUser?.reviewerCategories && appUser.reviewerCategories.length > 0 &&
-    !!task && !appUser.reviewerCategories.includes(task.category as TaskCategory);
+  // Any reviewer may take any task, so the only thing standing between them and a submission is whether
+  // someone else got there first. The queue already hides tasks claimed by others, but that is a list
+  // filter and a direct link goes straight past it, so the claim is checked here too.
+  const taskClaimedByOther = isActive && !isAdmin && !!task?.reviewerId && task.reviewerId !== user?.uid;
   // Conflict of interest: a reviewer who has submitted to this task themselves can't review anyone's submission for it.
   // Real enforcement is in firestore.rules; this just surfaces the same block in the UI.
   const ownTask = !isAdmin && !!sub?.taskId && !!(appUser?.submittedTaskIds ?? []).includes(sub.taskId);
-  const blockedForNonAdmin = !isAdmin && (lockedByOther || outOfCategory || ownTask);
+  const blockedForNonAdmin = !isAdmin && (lockedByOther || taskClaimedByOther || ownTask);
 
   // Claim the review lock. Fires the "review started" auto-message once per round.
   const startReview = async () => {
@@ -694,7 +695,7 @@ function ReviewerSubmissionPageInner() {
                       ? <>Currently being reviewed by <span className="font-semibold">{sub.reviewingByName || shortWallet(sub.reviewingByWallet)}</span>. You can read it, but cannot start until they release it.</>
                       : ownTask
                       ? "You submitted to this task yourself, so you can't review it."
-                      : "This submission is outside your review category."}
+                      : <>This task was taken by <span className="font-semibold">{task?.reviewerName || "another reviewer"}</span>, who reviews every submission on it. You can read it, but not score it.</>}
                   </div>
                 ) : isActive ? (
                   <button onClick={startReview} className="btn-primary">

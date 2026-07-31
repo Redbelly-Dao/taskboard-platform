@@ -116,7 +116,6 @@ export async function POST(req: NextRequest) {
       if (p.role) profileData.role = p.role;
       if (p.username) profileData.username = p.username;
       if (p.discordHandle) profileData.discordHandle = p.discordHandle;
-      if (p.reviewerCategories) profileData.reviewerCategories = p.reviewerCategories;
       await pendingDoc.ref.delete();
     }
 
