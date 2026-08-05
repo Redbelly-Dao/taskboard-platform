@@ -24,14 +24,19 @@ export function useWalletConnectors() {
   const { isConnected } = useAccount();
 
   // EIP-6963 discovery plus the fallback injected() connector can produce a duplicate generic "Injected" entry.
-  // Hide it when named wallets exist, then dedupe by display name.
+  // Hide it when named wallets exist, then dedupe.
+  //
+  // Dedupe on `id`, which EIP-6963 sets to the provider's rdns, never on display name. Two extensions can
+  // legitimately announce the same name (a second MetaMask profile, MetaMask alongside Flask), and keying on the
+  // name silently dropped all but the first. The survivor was whichever announced first, not the one holding the
+  // user's account, which is why a contributor had to connect through a different MetaMask instance and then
+  // Rabby before they could get in. Two buttons labelled "MetaMask" that both work beat one that does not.
   const named = connectors.filter((c) => c.name !== "Injected");
   const base = named.length > 0 ? named : connectors;
   const seen = new Set<string>();
   const list = base.filter((c) => {
-    const key = c.name.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
+    if (seen.has(c.id)) return false;
+    seen.add(c.id);
     return true;
   });
 
