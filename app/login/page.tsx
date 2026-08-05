@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Connector } from "wagmi";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, describeAuthError } from "@/lib/auth-context";
 import { useWalletConnectors } from "@/lib/use-wallet-connect";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -24,8 +24,8 @@ export default function LoginPage() {
       await walletLogin(address, signature, message);
       router.replace("/");
     } catch (err: unknown) {
-      const e = err as { shortMessage?: string; message?: string };
-      setError(e?.shortMessage || e?.message || "Login failed. Please sign the message with your wallet.");
+      console.error("Wallet login error:", err);
+      setError(describeAuthError(err, "login"));
     } finally {
       setPendingId(null);
     }
@@ -79,7 +79,7 @@ export default function LoginPage() {
                         {pending ? (
                           <span className="flex items-center justify-center gap-2">
                             <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            Signing in…
+                            Signing in...
                           </span>
                         ) : (
                           <span className="flex items-center justify-center gap-2">

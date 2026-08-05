@@ -42,6 +42,43 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+/**
+ * Turns a thrown auth error into something a contributor can act on.
+ *
+ * Without this the register and login forms print the SDK string verbatim, so a blocked request reads as
+ * "Firebase: Error (auth/network-request-failed)." and tells the person nothing about what to do.
+ *
+ * The network case matters most. /api/wallet-auth creates the Auth user, writes users/{uid} and consumes any
+ * pending grant before it mints the custom token, so by the time the client sign-in can fail the account already
+ * exists. Telling them registration failed is wrong: they are registered, and signing in will work once whatever
+ * is blocking googleapis.com is out of the way.
+ */
+export function describeAuthError(err: unknown, context: "register" | "login"): string {
+  const e = err as { code?: string; shortMessage?: string; message?: string };
+  const code = e?.code || "";
+
+  if (code === "auth/network-request-failed") {
+    const tail =
+      "Your browser could not reach Google's sign-in service. An ad blocker, privacy extension, VPN or network firewall is the usual cause. Turn it off for this site and try again.";
+    return context === "register"
+      ? `Your account was created, but signing you in did not finish. ${tail} Use Sign in with the same wallet once it is.`
+      : tail;
+  }
+
+  switch (code) {
+    case "auth/too-many-requests":
+      return "Too many attempts from this device. Wait a few minutes and try again.";
+    case "auth/user-disabled":
+      return "This account has been suspended. Reach out in the #DAO TASKBOARD channel.";
+    case "auth/invalid-custom-token":
+    case "auth/custom-token-mismatch":
+      return "The sign-in token was rejected. Refresh the page and try again, and tell an admin if it keeps happening.";
+    default:
+      // wagmi and viem put the useful sentence in shortMessage; Firebase and everything else use message.
+      return e?.shortMessage || e?.message || "Something went wrong. Please try again.";
+  }
+}
+
 // We use wallet address as the "email" in Firebase Auth by appending a domain to make it a valid email format
 const walletToEmail = (wallet: string) =>
   `${wallet.toLowerCase()}@redbelly-taskboard.dao`;

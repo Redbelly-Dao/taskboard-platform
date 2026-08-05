@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Connector } from "wagmi";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, describeAuthError } from "@/lib/auth-context";
 import { useWalletConnectors } from "@/lib/use-wallet-connect";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -19,6 +19,16 @@ export default function RegisterPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState("");
   const [pendingId, setPendingId] = useState<string | null>(null);
+
+  // The connect buttons stay disabled until the form above is complete. Nothing used to say so, so a dead button
+  // reads as a wallet fault and people start reconnecting wallets to fix a form problem.
+  const missing = [
+    !discord.trim() && "a Discord handle",
+    !username.trim() && "a username",
+    !acceptedTerms && "your acceptance of the Terms",
+  ].filter(Boolean) as string[];
+  const missingLabel =
+    missing.length > 1 ? `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}` : missing[0];
 
   const handleRegister = async (connector: Connector) => {
     setError("");
@@ -38,9 +48,8 @@ export default function RegisterPage() {
       await walletRegister(address, signature, message, discord, username, RIGHTS_VERSION);
       router.replace("/dashboard");
     } catch (err: unknown) {
-      const e = err as { shortMessage?: string; message?: string };
       console.error("Wallet register error:", err);
-      setError(e?.shortMessage || e?.message || "Registration failed. Please sign the message.");
+      setError(describeAuthError(err, "register"));
     } finally {
       setPendingId(null);
     }
@@ -152,7 +161,7 @@ export default function RegisterPage() {
                           {pending ? (
                             <span className="flex items-center justify-center gap-2">
                               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Creating account…
+                              Creating account...
                             </span>
                           ) : (
                             <span className="flex items-center justify-center gap-2">
@@ -169,7 +178,9 @@ export default function RegisterPage() {
                   </div>
                 )}
                 <p className="text-xs text-outline mt-1">
-                  Sign a message with your wallet to create your account. No password required.
+                  {missing.length > 0
+                    ? `Add ${missingLabel} above to enable these buttons.`
+                    : "Sign a message with your wallet to create your account. No password required."}
                 </p>
               </div>
 
